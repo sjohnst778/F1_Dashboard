@@ -635,7 +635,7 @@ def showdriverstanding(year, round):
 st.title("F1 Dashboard - FastF1")
 st.sidebar.header("F1 Controls")
 
-year = st.sidebar.slider("Select Year", min_value=1985, max_value=2025, value=2025)
+year = st.sidebar.slider("Select Year", min_value=1985, max_value=2026, value=2026)
 schedule = f1.get_event_schedule(year)
 
 #if st.sidebar.button("Driver Standings"):
