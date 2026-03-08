@@ -190,6 +190,8 @@ def showraceresults(session):
 
     for drv in session.drivers:
         drv_laps = session.laps.pick_drivers(drv)
+        if len(drv_laps) == 0:
+            continue
         abb = drv_laps['Driver'].iloc[0]
         style = f1.plotting.get_driver_style(identifier=abb,
                                              style=['color', 'linestyle'],
