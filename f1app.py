@@ -658,10 +658,12 @@ st.write(f"Date: {str(race_info['EventDate'])}")
 st.write(f"Round: {round}")
 st.write(f"Race: {selected_race}")
 
-session=getsessiondata(year, selected_race ,"FP1" , False)
-session.load()
-fig=drawtrackfor(session)
-st.pyplot(fig)
+if st.sidebar.button("Show Track"):
+    with st.expander("Track Map", expanded=True):
+        session=getsessiondata(year, selected_race ,"FP1" , False)
+        session.load()
+        fig=drawtrackfor(session)
+        st.pyplot(fig)
 
 sessions = []
 print(schedule.columns)
@@ -675,6 +677,7 @@ selected_session = st.sidebar.selectbox("Select Session", sessions)
 driver_codes = get_event_driver_abbreviations(year, selected_race, selected_session)
 selected_driver1 = st.sidebar.selectbox("Select Driver", driver_codes)
 selected_driver2 = st.sidebar.selectbox("Select Comparison Driver", driver_codes)
+
 
 if st.sidebar.button("Compare Drivers"):
     with st.expander("Driver Comparison", expanded=True):
