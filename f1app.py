@@ -16,7 +16,7 @@ from plotly.io import show
 from matplotlib.colors import to_rgb
 
 os.makedirs('f1cache', exist_ok=True)
-fastf1.Cache.enable_cache('f1cache')
+f1.Cache.enable_cache('f1cache')
 
 def fastest_and_mins(drv: pd.DataFrame):
     """Return fastest lap row (Series) and min sector times as dict."""
