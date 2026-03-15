@@ -4,6 +4,8 @@ import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt
 import seaborn as sns
 import fastf1 as f1
@@ -615,30 +617,58 @@ def showdriverstanding(year, round):
     results = results.rename(columns=dict(zip(round_cols, races)))
     results = results.rename(columns={'total_points': 'Total'})
 
-    fig = px.imshow(
-        results,
-        text_auto=True,
-        aspect='auto',  # Automatically adjust the aspect ratio
-        color_continuous_scale=[[0,    'rgb(198, 219, 239)'],  # Blue scale
-                                [0.25, 'rgb(107, 174, 214)'],
-                                [0.5,  'rgb(33,  113, 181)'],
-                                [0.75, 'rgb(8,   81,  156)'],
-                                [1,    'rgb(8,   48,  107)']],
-        labels={'x': 'Race',
-                'y': 'Driver',
-                'color': 'Points'}       # Change hover texts
+    blue_scale = [
+        [0,    'rgb(198, 219, 239)'],
+        [0.25, 'rgb(107, 174, 214)'],
+        [0.5,  'rgb(33,  113, 181)'],
+        [0.75, 'rgb(8,   81,  156)'],
+        [1,    'rgb(8,   48,  107)'],
+    ]
+
+    race_cols = [c for c in results.columns if c != 'Total']
+    drivers = results.index.tolist()
+    race_z = results[race_cols].values
+    total_z = results[['Total']].values
+
+    num_races = len(race_cols)
+    # Give Total column roughly the same width as one race column
+    total_width = 1 / (num_races + 1)
+    race_width = 1 - total_width - 0.01  # small gap between panels
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[race_width, total_width],
+        horizontal_spacing=0.01,
     )
-    fig.update_xaxes(title_text='')      # Remove axis titles
-    fig.update_yaxes(title_text='')
-    fig.update_yaxes(tickmode='linear')  # Show all ticks, i.e. driver names
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey',
-                    showline=False,
-                    tickson='boundaries')              # Show horizontal grid only
-    fig.update_xaxes(showgrid=False, showline=False)    # And remove vertical grid
-    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')     # White background
-    fig.update_layout(coloraxis_showscale=False)        # Remove legend
-    fig.update_layout(xaxis=dict(side='top'))           # x-axis on top
-    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))  # Remove border margins
+
+    fig.add_trace(go.Heatmap(
+        z=race_z,
+        x=race_cols,
+        y=drivers,
+        text=race_z,
+        texttemplate='%{text}',
+        colorscale=blue_scale,
+        showscale=False,
+        hovertemplate='Driver: %{y}<br>Race: %{x}<br>Points: %{z}<extra></extra>',
+    ), row=1, col=1)
+
+    fig.add_trace(go.Heatmap(
+        z=total_z,
+        x=['Total'],
+        y=drivers,
+        text=total_z,
+        texttemplate='%{text}',
+        colorscale=blue_scale,
+        showscale=False,
+        hovertemplate='Driver: %{y}<br>Total: %{z}<extra></extra>',
+    ), row=1, col=2)
+
+    fig.update_xaxes(side='top', showgrid=False, showline=False, title_text='')
+    fig.update_yaxes(tickmode='linear', showgrid=True, gridwidth=1,
+                     gridcolor='LightGrey', showline=False, tickson='boundaries',
+                     title_text='')
+    fig.update_yaxes(showticklabels=False, row=1, col=2)  # no duplicate driver labels
+    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, b=0, t=0))
 
     return fig
 
