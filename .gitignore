@@ -1,7 +1,8 @@
 .venv/
-__pycashe__/
+__pycache__/
 *.pyc
 .DS_Store
 *.egg-info/
 token
 Claude.md
+f1cache/

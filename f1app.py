@@ -14,7 +14,7 @@ from typing import List
 from plotly.io import show
 from matplotlib.colors import to_rgb
 
-#fastf1.Cache.enable_cache('f1cache')
+fastf1.Cache.enable_cache('f1cache')
 
 def fastest_and_mins(drv: pd.DataFrame):
     """Return fastest lap row (Series) and min sector times as dict."""
@@ -53,9 +53,16 @@ def getsessiondata(year, event, session, verbose=False):
     session = f1.get_session(year, event, session)
     return session
 
+@st.cache_data
 def getschedule(year):
-    schedule = f1.get_event_schedule(year)
-    return schedule
+    return f1.get_event_schedule(year)
+
+
+@st.cache_resource
+def load_session_cached(year, event, session_name):
+    session = f1.get_session(year, event, session_name)
+    session.load()
+    return session
 
 def calendardetails(year, verbose=False):
     calendar = f1.get_event_schedule(year)
@@ -279,6 +286,7 @@ def showqualifyingdeltas(session, drv_list=None):
 
     return fig
 
+@st.cache_data
 def get_event_driver_abbreviations(year, event, session_name='Race'):
     """Return a list of 3-letter driver abbreviations for the given event/session.
     - year: int
@@ -466,8 +474,7 @@ def showSectorTimesComparison(session, selected_driver1, selected_driver2):
     
 
 def showracedetails(year, race_name, session_name):
-    session=getsessiondata(year, race_name , session_name, False)
-    session.load()
+    session = load_session_cached(year, race_name, session_name)
 
     fig1=showraceresults(session)
     fig2=tyreStrategies(session)
@@ -538,8 +545,7 @@ def calculatemaxpointsforremainingseason(year, round):
 
 def driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2):
     fpl.setup_mpl(mpl_timedelta_support=True, color_scheme='fastf1')
-    session = f1.get_session(year, selected_race, selected_session)
-    session.load()
+    session = load_session_cached(year, selected_race, selected_session)
     fig1 = getSpeedTraceFor(session, selected_driver1, selected_driver2)
     fig2 = showqualifyingdeltas(session, drv_list=[selected_driver1,selected_driver2])
     styled = showSectorTimesComparison(session, selected_driver1, selected_driver2)
@@ -638,7 +644,7 @@ st.title("F1 Dashboard - FastF1")
 st.sidebar.header("F1 Controls")
 
 year = st.sidebar.slider("Select Year", min_value=1985, max_value=2026, value=2026)
-schedule = f1.get_event_schedule(year)
+schedule = getschedule(year)
 
 #if st.sidebar.button("Driver Standings"):
 with st.expander("Driver Standings", expanded=True):
@@ -660,9 +666,8 @@ st.write(f"Race: {selected_race}")
 
 if st.sidebar.button("Show Track"):
     with st.expander("Track Map", expanded=True):
-        session=getsessiondata(year, selected_race ,"FP1" , False)
-        session.load()
-        fig=drawtrackfor(session)
+        session = load_session_cached(year, selected_race, "FP1")
+        fig = drawtrackfor(session)
         st.pyplot(fig)
 
 sessions = []
