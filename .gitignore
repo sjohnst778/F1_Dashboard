@@ -5,3 +5,4 @@ __pycache__/
 *.egg-info/
 token
 Claude.md
+f1cache/*
