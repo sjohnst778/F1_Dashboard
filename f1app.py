@@ -518,7 +518,7 @@ def getSpeedTraceFor(session, driver1, driver2):
 
     ax.legend()
     plt.suptitle(f"Fastest Lap Comparison \n "
-                f"{session.event['EventName']} {session.event.year} Qualifying")
+                f"{session.event['EventName']} {session.event.year} {session.name}")
     return fig
 
 def getdriverstandings(year, round):
