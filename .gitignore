@@ -1,0 +1,5 @@
+.venv/
+__pycashe__/
+*.pyc
+.DS_Store
+*.egg-info/
