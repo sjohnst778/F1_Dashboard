@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -14,6 +15,7 @@ from typing import List
 from plotly.io import show
 from matplotlib.colors import to_rgb
 
+os.makedirs('f1cache', exist_ok=True)
 fastf1.Cache.enable_cache('f1cache')
 
 def fastest_and_mins(drv: pd.DataFrame):
