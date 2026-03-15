@@ -607,10 +607,11 @@ def showdriverstanding(year, round):
     # Rank the drivers by their total points
     results['total_points'] = results.sum(axis=1)
     results = results.sort_values(by='total_points', ascending=False)
-    results.drop(columns='total_points', inplace=True)
 
-    # Use race name, instead of round no., as column names
-    results.columns = races
+    # Use race name, instead of round no., as column names; keep Total on the right
+    round_cols = [c for c in results.columns if c != 'total_points']
+    results = results.rename(columns=dict(zip(round_cols, races)))
+    results = results.rename(columns={'total_points': 'Total'})
 
     fig = px.imshow(
         results,
