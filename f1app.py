@@ -36,7 +36,7 @@ def format_td_safe(x, fmt_seconds='%s.%ms', fmt_lap='%m:%s.%ms'):
         return x
     try:
         # assume timedelta-like
-        return strftimedelta(x, fmt_seconds if 'Sector' in cur_col else fmt_lap)
+        return strftimedelta(x, fmt_seconds)
     except Exception:
         try:
             return str(x)
@@ -666,7 +666,7 @@ def showdriverstanding(year, round):
     fig.update_xaxes(side='top', showgrid=False, showline=False, title_text='')
     fig.update_yaxes(tickmode='linear', showgrid=True, gridwidth=1,
                      gridcolor='LightGrey', showline=False, tickson='boundaries',
-                     title_text='')
+                     title_text='', autorange='reversed')
     fig.update_yaxes(showticklabels=False, row=1, col=2)  # no duplicate driver labels
     fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, b=0, t=0))
 
