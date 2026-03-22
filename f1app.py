@@ -818,4 +818,4 @@ with st.expander("Championship"):
     points = calculatemaxpointsforremainingseason(year, round)
     calculatewhocanwin(driver_standings, points)
 
-
+st.info("F1 Dashboard\nBuilt by Steve Johnstone 2026\nDashboard built using FastF1")
