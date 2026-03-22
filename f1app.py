@@ -558,6 +558,54 @@ def driverComparison(year, selected_race, selected_session, selected_driver1, se
     html = styled.to_html()
     components.html(html, height=300, scrolling=True)
 
+def get_driver_lap_times_df(session, driver):
+    """Return a DataFrame of valid lap times for a driver with formatted times."""
+    laps = session.laps.pick_drivers(driver).pick_quicklaps().reset_index(drop=True)
+    df = laps[['LapNumber', 'LapTime', 'Compound', 'Stint']].copy()
+    df['LapNumber'] = df['LapNumber'].astype(int)
+    df['LapTime'] = df['LapTime'].apply(
+        lambda x: strftimedelta(x, '%m:%s.%ms') if pd.notna(x) else ''
+    )
+    return df
+
+
+def plot_lap_telemetry(session, driver, lap_numbers):
+    """Plot speed traces for 1 or 2 specific laps of a driver."""
+    fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
+    circuit_info = session.get_circuit_info()
+    driver_laps = session.laps.pick_drivers(driver)
+
+    colors = ['#e8002d', '#00d2be']
+    tels = []
+    all_speeds = []
+    for lap_num in lap_numbers:
+        lap = driver_laps[driver_laps['LapNumber'] == lap_num].iloc[0]
+        tel = lap.get_car_data().add_distance()
+        tels.append(tel)
+        all_speeds.extend(tel['Speed'].dropna().tolist())
+
+    v_min = min(all_speeds)
+    v_max = max(all_speeds)
+
+    fig, ax = plt.subplots()
+    for i, (lap_num, tel) in enumerate(zip(lap_numbers, tels)):
+        ax.plot(tel['Distance'], tel['Speed'], color=colors[i], label=f'Lap {lap_num}')
+
+    ax.vlines(x=circuit_info.corners['Distance'], ymin=v_min - 20, ymax=v_max + 20,
+              linestyles='dotted', colors='grey')
+    for _, corner in circuit_info.corners.iterrows():
+        txt = f"{corner['Number']}{corner['Letter']}"
+        ax.text(corner['Distance'], v_min - 30, txt,
+                va='center_baseline', ha='center', size='small')
+
+    ax.set_xlabel('Distance in m')
+    ax.set_ylabel('Speed in km/h')
+    ax.legend()
+    ax.set_title(f"{driver} — {session.event['EventName']} {session.event.year} {session.name}")
+    plt.tight_layout()
+    return fig
+
+
 def calculatewhocanwin(driver_standings, max_points):
     LEADER_POINTS = int(driver_standings.loc[0]['points'])
 
@@ -720,6 +768,34 @@ selected_driver2 = st.sidebar.selectbox("Select Comparison Driver", driver_codes
 if st.sidebar.button("Compare Drivers"):
     with st.expander("Driver Comparison", expanded=True):
         driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
+
+if st.sidebar.button("Compare Laps"):
+    st.session_state.compare_laps_active = True
+    st.session_state.pop('compare_laps_tel_laps', None)
+
+if st.session_state.get('compare_laps_active'):
+    with st.expander("Lap Comparison", expanded=True):
+        session = load_session_cached(year, selected_race, selected_session)
+        lap_df = get_driver_lap_times_df(session, selected_driver1)
+        st.subheader(f"{selected_driver1} — Lap Times")
+        st.dataframe(lap_df, hide_index=True, use_container_width=True)
+
+        lap_options = lap_df['LapNumber'].tolist()
+        selected_laps = st.multiselect(
+            "Select 1 or 2 laps to compare",
+            options=lap_options,
+            max_selections=2,
+            format_func=lambda n: f"Lap {n}",
+            key='compare_laps_selection',
+        )
+
+        if selected_laps and st.button("Show Lap Telemetry"):
+            st.session_state.compare_laps_tel_laps = selected_laps
+
+        if st.session_state.get('compare_laps_tel_laps'):
+            fig = plot_lap_telemetry(session, selected_driver1,
+                                     st.session_state.compare_laps_tel_laps)
+            st.pyplot(fig)
 
 if st.sidebar.button("Show Session Details"):
     with st.expander("Race Details", expanded=True):
