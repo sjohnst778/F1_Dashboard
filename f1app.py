@@ -762,8 +762,8 @@ driver_codes = get_event_driver_abbreviations(year, selected_race, selected_sess
 selected_driver1 = st.sidebar.selectbox("Select Driver", driver_codes)
 selected_driver2 = st.sidebar.selectbox("Select Comparison Driver", driver_codes)
 
-with st.expander("Driver Comparison"):
-    driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
+with st.expander("Session Overview"):
+    showracedetails(year, selected_race, selected_session)
 
 with st.expander("Lap Comparison"):
     session = load_session_cached(year, selected_race, selected_session)
@@ -788,8 +788,8 @@ with st.expander("Lap Comparison"):
                                  st.session_state.compare_laps_tel_laps)
         st.pyplot(fig)
 
-with st.expander("Session Overview"):
-    showracedetails(year, selected_race, selected_session)
+with st.expander("Driver Comparison"):
+    driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
 
 with st.expander("Championship"):
     driver_standings = getdriverstandings(year, round)
