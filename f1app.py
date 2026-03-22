@@ -733,7 +733,7 @@ with st.expander("Driver Standings", expanded=True):
     fig = showdriverstanding(year, round)
     st.plotly_chart(fig, use_container_width=True)
 
-race_names = schedule['EventName'].tolist()
+race_names = schedule[schedule['EventFormat'] != 'testing']['EventName'].tolist()
 selected_race = st.sidebar.selectbox("Select Race", race_names)
 st.write(f"You selected: {year} - {selected_race}")
 race_info = schedule[schedule['EventName'] == selected_race].iloc[0]
