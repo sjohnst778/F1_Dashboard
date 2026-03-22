@@ -477,8 +477,30 @@ def showSectorTimesComparison(session, selected_driver1, selected_driver2):
     return styled
     
 
+def fastestlapstable(session):
+    drivers = pd.unique(session.laps['Driver'])
+    rows = []
+    for drv in drivers:
+        fastest = session.laps.pick_drivers(drv).pick_fastest()
+        if fastest is None or pd.isna(fastest['LapTime']):
+            continue
+        rows.append({
+            'Driver': drv,
+            'Team': fastest['Team'],
+            'Lap': int(fastest['LapNumber']),
+            'Lap Time': strftimedelta(fastest['LapTime'], '%m:%s.%ms'),
+            'Compound': fastest['Compound'],
+        })
+    df = pd.DataFrame(rows).sort_values('Lap Time').reset_index(drop=True)
+    df.index += 1
+    return df
+
+
 def showracedetails(year, race_name, session_name):
     session = load_session_cached(year, race_name, session_name)
+
+    st.subheader("Fastest Laps")
+    st.dataframe(fastestlapstable(session), use_container_width=True)
 
     fig1=showraceresults(session)
     fig2=tyreStrategies(session)
