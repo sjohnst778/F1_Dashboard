@@ -745,17 +745,15 @@ st.write(f"Date: {str(race_info['EventDate'])}")
 st.write(f"Round: {round}")
 st.write(f"Race: {selected_race}")
 
-if st.sidebar.button("Show Track"):
-    with st.expander("Track Map", expanded=True):
-        session = load_session_cached(year, selected_race, "FP1")
-        fig = drawtrackfor(session)
-        st.pyplot(fig)
+with st.expander("Track Map"):
+    session = load_session_cached(year, selected_race, "FP1")
+    fig = drawtrackfor(session)
+    st.pyplot(fig)
 
 sessions = []
-print(schedule.columns)
 for col in schedule.columns:
     if col.startswith("Session") and not col.endswith("Date") and not col.endswith("DateUtc"):
-        val=race_info[col]
+        val = race_info[col]
         if pd.notna(val):
             sessions.append(val)
 selected_session = st.sidebar.selectbox("Select Session", sessions)
@@ -764,48 +762,38 @@ driver_codes = get_event_driver_abbreviations(year, selected_race, selected_sess
 selected_driver1 = st.sidebar.selectbox("Select Driver", driver_codes)
 selected_driver2 = st.sidebar.selectbox("Select Comparison Driver", driver_codes)
 
+with st.expander("Driver Comparison"):
+    driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
 
-if st.sidebar.button("Compare Drivers"):
-    with st.expander("Driver Comparison", expanded=True):
-        driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
+with st.expander("Lap Comparison"):
+    session = load_session_cached(year, selected_race, selected_session)
+    lap_df = get_driver_lap_times_df(session, selected_driver1)
+    st.subheader(f"{selected_driver1} — Lap Times")
+    st.dataframe(lap_df, hide_index=True, use_container_width=True)
 
-if st.sidebar.button("Compare Laps"):
-    st.session_state.compare_laps_active = True
-    st.session_state.pop('compare_laps_tel_laps', None)
+    lap_options = lap_df['LapNumber'].tolist()
+    selected_laps = st.multiselect(
+        "Select 1 or 2 laps to compare",
+        options=lap_options,
+        max_selections=2,
+        format_func=lambda n: f"Lap {n}",
+        key='compare_laps_selection',
+    )
 
-if st.session_state.get('compare_laps_active'):
-    with st.expander("Lap Comparison", expanded=True):
-        session = load_session_cached(year, selected_race, selected_session)
-        lap_df = get_driver_lap_times_df(session, selected_driver1)
-        st.subheader(f"{selected_driver1} — Lap Times")
-        st.dataframe(lap_df, hide_index=True, use_container_width=True)
+    if selected_laps and st.button("Show Lap Telemetry"):
+        st.session_state.compare_laps_tel_laps = selected_laps
 
-        lap_options = lap_df['LapNumber'].tolist()
-        selected_laps = st.multiselect(
-            "Select 1 or 2 laps to compare",
-            options=lap_options,
-            max_selections=2,
-            format_func=lambda n: f"Lap {n}",
-            key='compare_laps_selection',
-        )
+    if st.session_state.get('compare_laps_tel_laps'):
+        fig = plot_lap_telemetry(session, selected_driver1,
+                                 st.session_state.compare_laps_tel_laps)
+        st.pyplot(fig)
 
-        if selected_laps and st.button("Show Lap Telemetry"):
-            st.session_state.compare_laps_tel_laps = selected_laps
+with st.expander("Session Overview"):
+    showracedetails(year, selected_race, selected_session)
 
-        if st.session_state.get('compare_laps_tel_laps'):
-            fig = plot_lap_telemetry(session, selected_driver1,
-                                     st.session_state.compare_laps_tel_laps)
-            st.pyplot(fig)
-
-if st.sidebar.button("Show Session Details"):
-    with st.expander("Race Details", expanded=True):
-        showracedetails(year, selected_race, selected_session)
-
-if st.sidebar.button("Who Can Win - Top 10"):
-    with st.expander("Season Details", expanded=True):
-        # Get the current drivers standings
-        driver_standings = getdriverstandings(year, round)
-        points = calculatemaxpointsforremainingseason(year, round)
-        calculatewhocanwin(driver_standings, points)
+with st.expander("Championship"):
+    driver_standings = getdriverstandings(year, round)
+    points = calculatemaxpointsforremainingseason(year, round)
+    calculatewhocanwin(driver_standings, points)
 
 
