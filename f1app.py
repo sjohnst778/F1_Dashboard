@@ -471,8 +471,20 @@ def showSectorTimesComparison(session, selected_driver1, selected_driver2):
         txt = '#000' if sum(map(lambda v: int(v*255), to_rgb(c))) / 3 > 128 else '#fff'  # readable text
         return [f'background-color: {c}; color: {txt};' for _ in row]
 
+    sector_header_styles = [
+        {'selector': 'th', 'props': [('background-color', '#222'), ('color', '#fff')]},
+        # S1 columns (blue)
+        {'selector': 'th.col_heading.col1', 'props': [('background-color', '#4FC3F7'), ('color', '#000')]},
+        {'selector': 'th.col_heading.col5', 'props': [('background-color', '#4FC3F7'), ('color', '#000')]},
+        # S2 columns (yellow)
+        {'selector': 'th.col_heading.col2', 'props': [('background-color', '#FFF176'), ('color', '#000')]},
+        {'selector': 'th.col_heading.col6', 'props': [('background-color', '#FFF176'), ('color', '#000')]},
+        # S3 columns (purple)
+        {'selector': 'th.col_heading.col3', 'props': [('background-color', '#CE93D8'), ('color', '#000')]},
+        {'selector': 'th.col_heading.col7', 'props': [('background-color', '#CE93D8'), ('color', '#000')]},
+    ]
     styled = df2.style.apply(style_row, axis=1).set_table_styles(
-        [{'selector': 'th', 'props': [('background-color', '#222'), ('color', '#fff')]}]
+        sector_header_styles
     ).set_properties(**{'border': '1px solid #999', 'padding': '6px'})
     return styled
     
@@ -756,6 +768,7 @@ def showdriverstanding(year, round):
     return fig
 
 
+st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
 st.sidebar.header("F1 Controls")
 
