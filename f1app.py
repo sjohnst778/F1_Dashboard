@@ -658,7 +658,7 @@ def showdriverstanding(year, round):
             break
 
         # If there is a sprint, get the results as well
-        sprint = ergast.get_sprint_results(season=2022, round=rnd + 1)
+        sprint = ergast.get_sprint_results(season=year, round=rnd + 1)
         if sprint.content and sprint.description['round'][0] == rnd + 1:
             temp = pd.merge(temp, sprint.content[0], on='driverCode', how='left')
             # Add sprint points and race points to get the total
@@ -749,17 +749,18 @@ st.sidebar.header("F1 Controls")
 year = st.sidebar.slider("Select Year", min_value=1985, max_value=2026, value=2026)
 schedule = getschedule(year)
 
+race_names = schedule[schedule['EventFormat'] != 'testing']['EventName'].tolist()
+selected_race = st.sidebar.selectbox("Select Race", race_names)
+race_info = schedule[schedule['EventName'] == selected_race].iloc[0]
+round = int(race_info['RoundNumber'])
+
 #if st.sidebar.button("Driver Standings"):
 with st.expander("Driver Standings", expanded=True):
     # Get the current drivers standings
     fig = showdriverstanding(year, round)
     st.plotly_chart(fig, use_container_width=True)
 
-race_names = schedule[schedule['EventFormat'] != 'testing']['EventName'].tolist()
-selected_race = st.sidebar.selectbox("Select Race", race_names)
 st.write(f"You selected: {year} - {selected_race}")
-race_info = schedule[schedule['EventName'] == selected_race].iloc[0]
-round = int(race_info['RoundNumber'])
 st.subheader("Selection Details")
 st.write(f"Year: {year}")
 st.write(f"Country: {race_info['Country']}")
