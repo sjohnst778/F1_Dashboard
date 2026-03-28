@@ -516,6 +516,21 @@ def getSpeedTraceFor(session, driver1, driver2):
     driver2_tel = driver2_lap.get_car_data().add_distance()
     circuit_info = session.get_circuit_info()
 
+    # Calculate sector boundary distances from the overall fastest lap telemetry
+    ref_lap = session.laps.pick_fastest()
+    ref_tel = ref_lap.get_car_data().add_distance()
+    s1_end_dist = ref_tel.loc[ref_tel['Time'] <= ref_lap['Sector1Time'], 'Distance'].max()
+    s2_end_dist = ref_tel.loc[ref_tel['Time'] <= ref_lap['Sector1Time'] + ref_lap['Sector2Time'], 'Distance'].max()
+
+    sector_colors = {1: '#4FC3F7', 2: '#FFF176', 3: '#CE93D8'}  # blue, yellow, purple
+
+    def corner_sector(dist):
+        if dist <= s1_end_dist:
+            return 1
+        elif dist <= s2_end_dist:
+            return 2
+        return 3
+
     d1_color = fpl.get_team_color(driver1_lap['Team'], session=session)
     d2_color = fpl.get_team_color(driver2_lap['Team'], session=session)
     d2_linestyle = '--' if d1_color == d2_color else '-'
@@ -524,20 +539,18 @@ def getSpeedTraceFor(session, driver1, driver2):
     ax.plot(driver1_tel['Distance'], driver1_tel['Speed'], color=d1_color, label=driver1)
     ax.plot(driver2_tel['Distance'], driver2_tel['Speed'], color=d2_color, label=driver2, linestyle=d2_linestyle)
 
-    # Draw vertical dotted lines at each corner that range from slightly below the
-    # minimum speed to slightly above the maximum speed.
+    # Draw vertical dotted lines at each corner
     v_min = driver1_tel['Speed'].min()
     v_max = driver1_tel['Speed'].max()
     ax.vlines(x=circuit_info.corners['Distance'], ymin=v_min-20, ymax=v_max+20,
             linestyles='dotted', colors='grey')
 
-    # Plot the corner number just below each vertical line.
-    # For corners that are very close together, the text may overlap. A more
-    # complicated approach would be necessary to reliably prevent this.
+    # Plot corner numbers coloured by sector (S1=blue, S2=yellow, S3=purple)
     for _, corner in circuit_info.corners.iterrows():
         txt = f"{corner['Number']}{corner['Letter']}"
+        color = sector_colors[corner_sector(corner['Distance'])]
         ax.text(corner['Distance'], v_min-30, txt,
-                va='center_baseline', ha='center', size='small')
+                va='center_baseline', ha='center', size='small', color=color)
 
     ax.set_xlabel('Distance in m')
     ax.set_ylabel('Speed in km/h')
