@@ -904,12 +904,12 @@ race_info = schedule[schedule['EventName'] == selected_race].iloc[0]
 round = int(race_info['RoundNumber'])
 
 #if st.sidebar.button("Driver Standings"):
-with st.expander("Driver Standings", expanded=True):
+with st.expander("Driver Standings", expanded=False):
     # Get the current drivers standings
     fig = showdriverstanding(year, round)
     st.plotly_chart(fig, use_container_width=True)
 
-with st.expander("Team Standings", expanded=True):
+with st.expander("Team Standings", expanded=False):
     fig = showteamstanding(year, round)
     st.plotly_chart(fig, use_container_width=True)
 
