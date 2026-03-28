@@ -666,6 +666,129 @@ def calculatewhocanwin(driver_standings, max_points):
               f"Theoretical max points: {driver_max_points}, "
               f"Can win: {can_win}")
         
+# Maps Ergast constructorId -> (hex colour, display name)
+_CONSTRUCTOR_COLORS = {
+    'red_bull':     ('#3671C6', 'Red Bull'),
+    'mercedes':     ('#27F4D2', 'Mercedes'),
+    'ferrari':      ('#E8002D', 'Ferrari'),
+    'mclaren':      ('#FF8000', 'McLaren'),
+    'aston_martin': ('#358C75', 'Aston Martin'),
+    'alpine':       ('#FF87BC', 'Alpine'),
+    'williams':     ('#64C4FF', 'Williams'),
+    'rb':           ('#6692FF', 'RB'),
+    'alphatauri':   ('#5E8FAA', 'AlphaTauri'),
+    'haas':         ('#B6BABD', 'Haas'),
+    'sauber':       ('#52E252', 'Kick Sauber'),
+    'alfa':         ('#C92D4B', 'Alfa Romeo'),
+    'racing_point': ('#F596C8', 'Racing Point'),
+    'renault':      ('#FFF500', 'Renault'),
+    'toro_rosso':   ('#469BFF', 'Toro Rosso'),
+    'force_india':  ('#F596C8', 'Force India'),
+    'lotus_f1':     ('#FFB800', 'Lotus'),
+    'manor':        ('#C0392B', 'Manor'),
+    'caterham':     ('#1E5B23', 'Caterham'),
+    'marussia':     ('#E04B09', 'Marussia'),
+}
+
+def showteamstanding(year, round):
+    ergast = Ergast()
+    races = ergast.get_race_schedule(year)
+    results = []
+
+    for rnd, race in races['raceName'].items():
+        temp = ergast.get_race_results(season=year, round=rnd + 1)
+        try:
+            race_df = temp.content[0][['constructorId', 'points']].copy()
+        except:
+            break
+
+        sprint = ergast.get_sprint_results(season=year, round=rnd + 1)
+        if sprint.content and sprint.description['round'][0] == rnd + 1:
+            sprint_df = sprint.content[0][['constructorId', 'points']].copy()
+            race_df = pd.concat([race_df, sprint_df])
+
+        team_pts = race_df.groupby('constructorId')['points'].sum().reset_index()
+        team_pts['round'] = rnd + 1
+        team_pts['race'] = race.removesuffix(' Grand Prix')
+        results.append(team_pts)
+
+    results = pd.concat(results)
+    race_name_map = results[['round', 'race']].drop_duplicates().set_index('round')['race']
+
+    team_results = results.pivot_table(index='constructorId', columns='round', values='points', aggfunc='sum').fillna(0)
+    team_results['total_points'] = team_results.sum(axis=1)
+    team_results = team_results.sort_values('total_points', ascending=False)
+
+    round_cols = [c for c in team_results.columns if c != 'total_points']
+    team_results = team_results.rename(columns={r: race_name_map[r] for r in round_cols})
+    team_results = team_results.rename(columns={'total_points': 'Total'})
+
+    constructors = team_results.index.tolist()
+    display_names = [_CONSTRUCTOR_COLORS.get(c, ('#AAAAAA', c.replace('_', ' ').title()))[1] for c in constructors]
+    team_colors_list = [_CONSTRUCTOR_COLORS.get(c, ('#AAAAAA', ''))[0] for c in constructors]
+
+    race_cols = [c for c in team_results.columns if c != 'Total']
+    race_z = team_results[race_cols].values
+    total_z = team_results[['Total']].values
+
+    blue_scale = [
+        [0,    'rgb(198, 219, 239)'],
+        [0.25, 'rgb(107, 174, 214)'],
+        [0.5,  'rgb(33,  113, 181)'],
+        [0.75, 'rgb(8,   81,  156)'],
+        [1,    'rgb(8,   48,  107)'],
+    ]
+
+    num_races = len(race_cols)
+    total_width = 1 / (num_races + 1)
+    race_width = 1 - total_width - 0.01
+
+    fig = make_subplots(rows=1, cols=2, column_widths=[race_width, total_width], horizontal_spacing=0.01)
+
+    fig.add_trace(go.Heatmap(
+        z=race_z,
+        x=race_cols,
+        y=display_names,
+        text=race_z,
+        texttemplate='%{text}',
+        colorscale=blue_scale,
+        showscale=False,
+        hovertemplate='Team: %{y}<br>Race: %{x}<br>Points: %{z}<extra></extra>',
+    ), row=1, col=1)
+
+    fig.add_trace(go.Heatmap(
+        z=total_z,
+        x=['Total'],
+        y=display_names,
+        text=total_z,
+        texttemplate='%{text}',
+        colorscale=blue_scale,
+        showscale=False,
+        hovertemplate='Team: %{y}<br>Total: %{z}<extra></extra>',
+    ), row=1, col=2)
+
+    fig.update_xaxes(side='top', showgrid=False, showline=False, title_text='')
+    fig.update_yaxes(tickmode='linear', showgrid=True, gridwidth=1,
+                     gridcolor='LightGrey', showline=False, tickson='boundaries',
+                     title_text='', autorange='reversed', showticklabels=False)
+    fig.update_yaxes(showticklabels=False, row=1, col=2)
+
+    # Team name labels coloured by team — Plotly doesn't support per-tick colours
+    # so we use annotations positioned just left of the plot area
+    for name, color in zip(display_names, team_colors_list):
+        fig.add_annotation(
+            x=0, y=name,
+            xref='paper', yref='y',
+            text=f'<b>{name}</b>',
+            showarrow=False,
+            xanchor='right',
+            font=dict(color=color, size=11),
+        )
+
+    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=110, r=0, b=0, t=0))
+    return fig
+
+
 def showdriverstanding(year, round):
     ergast = Ergast()
     races = ergast.get_race_schedule(year)
@@ -784,6 +907,10 @@ round = int(race_info['RoundNumber'])
 with st.expander("Driver Standings", expanded=True):
     # Get the current drivers standings
     fig = showdriverstanding(year, round)
+    st.plotly_chart(fig, use_container_width=True)
+
+with st.expander("Team Standings", expanded=True):
+    fig = showteamstanding(year, round)
     st.plotly_chart(fig, use_container_width=True)
 
 st.write(f"You selected: {year} - {selected_race}")
