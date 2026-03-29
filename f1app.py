@@ -605,6 +605,11 @@ def getSpeedDifferenceChart(session, driver1, driver2):
     d1_color = fpl.get_team_color(driver1_lap['Team'], session=session)
     d2_color = fpl.get_team_color(driver2_lap['Team'], session=session)
 
+    def hex_to_rgba(hex_color, alpha=0.33):
+        hex_color = hex_color.lstrip('#')
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        return f'rgba({r},{g},{b},{alpha})'
+
     # Split diff into two series: where d1 is faster (positive) and d2 is faster (negative)
     diff_pos = np.where(diff >= 0, diff, 0)
     diff_neg = np.where(diff < 0, diff, 0)
@@ -616,7 +621,7 @@ def getSpeedDifferenceChart(session, driver1, driver2):
         x=np.concatenate([dist, dist[::-1]]),
         y=np.concatenate([diff_pos, np.zeros(len(dist))]),
         fill='toself',
-        fillcolor=d1_color + '55',
+        fillcolor=hex_to_rgba(d1_color),
         line=dict(width=0),
         name=f'{driver1} faster',
         hoverinfo='skip',
@@ -627,7 +632,7 @@ def getSpeedDifferenceChart(session, driver1, driver2):
         x=np.concatenate([dist, dist[::-1]]),
         y=np.concatenate([diff_neg, np.zeros(len(dist))]),
         fill='toself',
-        fillcolor=d2_color + '55',
+        fillcolor=hex_to_rgba(d2_color),
         line=dict(width=0),
         name=f'{driver2} faster',
         hoverinfo='skip',
@@ -698,7 +703,7 @@ def driverComparison(year, selected_race, selected_session, selected_driver1, se
     styled = showSectorTimesComparison(session, selected_driver1, selected_driver2)
     st.pyplot(fig2); plt.close(fig2)
     st.pyplot(fig1); plt.close(fig1)
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, width='stretch')
     html = styled.to_html()
     components.html(html, height=300, scrolling=True)
 
