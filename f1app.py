@@ -83,26 +83,42 @@ def drawtrackfor(session):
     pos = lap.get_pos_data()
     circuit_info = session.get_circuit_info()
 
-    # Get an array of shape [n, 2] where n is the number of points and the second
-    # axis is x and y.
-    track = pos.loc[:, ('X', 'Y')].to_numpy()
-
-    # Convert the rotation angle from degrees to radian to align to map orientation.
     track_angle = circuit_info.rotation / 180 * np.pi
 
-    # Rotate track coordinates
-    rotated_track = rotate(track, angle=track_angle)
+    # Sector boundary times
+    s1_end = lap['Sector1Time']
+    s2_end = lap['Sector1Time'] + lap['Sector2Time']
+
+    sector_colors = ['#4FC3F7', '#FFF176', '#CE93D8']  # S1 light blue, S2 yellow, S3 purple
+    sector_names = ['Sector 1', 'Sector 2', 'Sector 3']
+
+    masks = [
+        pos['Time'] <= s1_end,
+        (pos['Time'] > s1_end) & (pos['Time'] <= s2_end),
+        pos['Time'] > s2_end,
+    ]
 
     # Build Plotly figure to avoid matplotlib/timple unit conversion recursion in some environments.
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=rotated_track[:, 0],
-        y=rotated_track[:, 1],
-        mode='lines',
-        line=dict(color='white', width=2),
-        name='Track',
-        hoverinfo='skip'
-    ))
+
+    for i, (mask, color, name) in enumerate(zip(masks, sector_colors, sector_names)):
+        # Extend each segment by one point at the far boundary to close gaps between sectors
+        indices = pos.index[mask].tolist()
+        if i < 2:
+            # append first point of next sector
+            next_indices = pos.index[masks[i + 1]].tolist()
+            if next_indices:
+                indices = indices + [next_indices[0]]
+        seg = pos.loc[indices, ('X', 'Y')].to_numpy()
+        rotated_seg = rotate(seg, angle=track_angle)
+        fig.add_trace(go.Scatter(
+            x=rotated_seg[:, 0],
+            y=rotated_seg[:, 1],
+            mode='lines',
+            line=dict(color=color, width=3),
+            name=name,
+            hoverinfo='skip',
+        ))
 
     # Draw corners and labels.
     offset_vector = np.array([500.0, 0.0])
