@@ -62,7 +62,7 @@ def getschedule(year):
     return f1.get_event_schedule(year)
 
 
-@st.cache_resource
+@st.cache_resource(max_entries=3)
 def load_session_cached(year, event, session_name):
     session = f1.get_session(year, event, session_name)
     session.load()
@@ -292,62 +292,17 @@ def showqualifyingdeltas(session, drv_list=None):
 
 @st.cache_data
 def get_event_driver_abbreviations(year, event, session_name='Race'):
-    """Return a list of 3-letter driver abbreviations for the given event/session.
-    - year: int
-    - event: the event identifier from the schedule (try EventName or EventShortName)
-    - session_name: typically 'Race' or 'Qualifying'
-
-    This function prefers to read the abbreviations from session.laps['Driver'] (most reliable),
-    then falls back to session.results['Abbreviation'], and finally to session.get_driver().
-    """
+    """Return driver abbreviations using only the session results (no telemetry/laps loaded)."""
     try:
         sess = f1.get_session(year, event, session_name)
-    except Exception as e:
-        print(f"Could not get session {session_name} for {event} {year}: {e}")
-        return []
-
-    # Load minimal data (avoid full telemetry). Some FastF1 versions accept telemetry/weather args.
-    try:
-        sess.load(telemetry=False, weather=False)
-    except TypeError:
-        sess.load()
-
-    # 1) Prefer abbreviations from the laps table (this commonly contains 3-letter codes)
-    try:
-        if hasattr(sess, 'laps') and len(sess.laps) > 0:
-            # session.laps['Driver'] is usually the 3-letter code
-            abbs = pd.unique(sess.laps['Driver']).tolist()
-            return [str(a) for a in abbs]
-    except Exception:
-        pass
-
-    # 2) Fallback: check a results table if present
-    try:
+        sess.load(laps=False, telemetry=False, weather=False, messages=False)
         if hasattr(sess, 'results') and 'Abbreviation' in sess.results.columns:
-            return sess.results['Abbreviation'].dropna().unique().tolist()
-    except Exception:
-        pass
-
-    # 3) Last resort: query session.drivers + session.get_driver and extract 'Abbreviation'
-    abbs = []
-    for drv in sess.drivers:
-        try:
-            info = sess.get_driver(drv)
-        except Exception:
-            info = None
-        abb = None
-        if isinstance(info, dict):
-            abb = info.get('Abbreviation') or info.get('abbr') or info.get('Abbrev')
-        elif hasattr(info, 'get'):
-            try:
-                abb = info.get('Abbreviation') or info.get('abbr')
-            except Exception:
-                abb = None
-        # fallback to driver identifier
-        if not abb:
-            abb = str(drv)
-        abbs.append(abb)
-    return abbs
+            abbs = sess.results['Abbreviation'].dropna().unique().tolist()
+            if abbs:
+                return abbs
+    except Exception as e:
+        print(f"Could not get driver list for {event} {year} {session_name}: {e}")
+    return []
 
 def driverlaptimes(session):
     fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
@@ -517,9 +472,9 @@ def showracedetails(year, race_name, session_name):
     fig1=showraceresults(session)
     fig2=tyreStrategies(session)
     fig3=driverlaptimes(session)
-    st.pyplot(fig1)
-    st.pyplot(fig2)
-    st.pyplot(fig3)
+    st.pyplot(fig1); plt.close(fig1)
+    st.pyplot(fig2); plt.close(fig2)
+    st.pyplot(fig3); plt.close(fig3)
 
 def getSpeedTraceFor(session, driver1, driver2):
     driver1_lap = session.laps.pick_drivers(driver1).pick_fastest()
@@ -600,8 +555,8 @@ def driverComparison(year, selected_race, selected_session, selected_driver1, se
     fig1 = getSpeedTraceFor(session, selected_driver1, selected_driver2)
     fig2 = showqualifyingdeltas(session, drv_list=[selected_driver1,selected_driver2])
     styled = showSectorTimesComparison(session, selected_driver1, selected_driver2)
-    st.pyplot(fig2)
-    st.pyplot(fig1)
+    st.pyplot(fig2); plt.close(fig2)
+    st.pyplot(fig1); plt.close(fig1)
     html = styled.to_html()
     components.html(html, height=300, scrolling=True)
 
@@ -925,6 +880,7 @@ with st.expander("Track Map"):
     session = load_session_cached(year, selected_race, "FP1")
     fig = drawtrackfor(session)
     st.pyplot(fig)
+    plt.close(fig)
 
 sessions = []
 for col in schedule.columns:
@@ -963,6 +919,7 @@ with st.expander("Lap Comparison"):
         fig = plot_lap_telemetry(session, selected_driver1,
                                  st.session_state.compare_laps_tel_laps)
         st.pyplot(fig)
+        plt.close(fig)
 
 with st.expander("Driver Comparison"):
     driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
