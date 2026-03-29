@@ -152,7 +152,8 @@ def drawtrackfor(session):
         ))
 
     fig.update_layout(
-        title=dict(text=session.event['Location'], x=0.5),
+        title=dict(text=session.event['Location'], x=0.5, font=dict(color='white', size=16)),
+        legend=dict(font=dict(color='white', size=13)),
         xaxis=dict(showgrid=False, zeroline=False, visible=False),
         yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor='x', scaleratio=1),
         plot_bgcolor='black',
