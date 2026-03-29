@@ -79,57 +79,72 @@ def getlapsfor(session, driver):
     return laps
 
 def drawtrackfor(session):
-    # Avoid calling fastf1's setup_mpl here to prevent timple recursion issues
-    # with Matplotlib unit converters in some environments.
     lap = session.laps.pick_fastest()
     pos = lap.get_pos_data()
     circuit_info = session.get_circuit_info()
-    fig, ax = plt.subplots()
+
     # Get an array of shape [n, 2] where n is the number of points and the second
     # axis is x and y.
     track = pos.loc[:, ('X', 'Y')].to_numpy()
 
-    # Convert the rotation angle from degrees to radian.
+    # Convert the rotation angle from degrees to radian to align to map orientation.
     track_angle = circuit_info.rotation / 180 * np.pi
 
-    # Rotate and plot the track map.
+    # Rotate track coordinates
     rotated_track = rotate(track, angle=track_angle)
-    ax.plot(rotated_track[:, 0], rotated_track[:, 1],color='white', linewidth=1.2)
 
-    offset_vector = [500, 0]  # offset length is chosen arbitrarily to 'look good'
+    # Build Plotly figure to avoid matplotlib/timple unit conversion recursion in some environments.
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=rotated_track[:, 0],
+        y=rotated_track[:, 1],
+        mode='lines',
+        line=dict(color='white', width=2),
+        name='Track',
+        hoverinfo='skip'
+    ))
 
-    # Iterate over all corners.
+    # Draw corners and labels.
+    offset_vector = np.array([500.0, 0.0])
     for _, corner in circuit_info.corners.iterrows():
-        # Create a string from corner number and letter
         txt = f"{corner['Number']}{corner['Letter']}"
-
-        # Convert the angle from degrees to radian.
         offset_angle = corner['Angle'] / 180 * np.pi
-
-        # Rotate the offset vector so that it points sideways from the track.
         offset_x, offset_y = rotate(offset_vector, angle=offset_angle)
-        # Add the offset to the position of the corner
         text_x = corner['X'] + offset_x
         text_y = corner['Y'] + offset_y
-        # Rotate the text position equivalently to the rest of the track map
         text_x, text_y = rotate([text_x, text_y], angle=track_angle)
-        # Rotate the center of the corner equivalently to the rest of the track map
         track_x, track_y = rotate([corner['X'], corner['Y']], angle=track_angle)
 
-        # Draw a circle next to the track.
-        ax.scatter(text_x, text_y, color='grey', s=140)
-        # Draw a line from the track to this circle.
-        ax.plot([track_x, text_x], [track_y, text_y], color='grey')
-        # Finally, print the corner number inside the circle.
-        ax.text(text_x, text_y, txt,
-                 va='center_baseline', ha='center', size='small', color='white', zorder=6)
+        fig.add_trace(go.Scatter(
+            x=[track_x, text_x],
+            y=[track_y, text_y],
+            mode='lines',
+            line=dict(color='grey', width=1),
+            hoverinfo='skip',
+            showlegend=False
+        ))
+        fig.add_trace(go.Scatter(
+            x=[text_x],
+            y=[text_y],
+            mode='markers+text',
+            marker=dict(color='grey', size=18),
+            text=[txt],
+            textposition='middle center',
+            textfont=dict(color='black', size=10),
+            hoverinfo='skip',
+            showlegend=False
+        ))
 
-    ax.set_title(session.event['Location'])
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_aspect('equal', 'box')
-    plt.tight_layout()
-#    plt.show()
+    fig.update_layout(
+        title=dict(text=session.event['Location'], x=0.5),
+        xaxis=dict(showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor='x', scaleratio=1),
+        plot_bgcolor='black',
+        paper_bgcolor='black',
+        margin=dict(l=0, r=0, t=40, b=0),
+        height=500
+    )
+
     return fig
 
 def plotdriverslaptimes(session, driver):
@@ -880,8 +895,7 @@ st.write(f"Race: {selected_race}")
 with st.expander("Track Map"):
     session = load_session_cached(year, selected_race, "FP1")
     fig = drawtrackfor(session)
-    st.pyplot(fig)
-    plt.close(fig)
+    st.plotly_chart(fig, width='stretch')
 
 sessions = []
 for col in schedule.columns:
