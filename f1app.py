@@ -79,7 +79,7 @@ def getlapsfor(session, driver):
     return laps
 
 def drawtrackfor(session):
-    fpl.setup_mpl(mpl_timedelta_support=True, color_scheme='fastf1')
+    fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
     lap = session.laps.pick_fastest()
     pos = lap.get_pos_data()
     circuit_info = session.get_circuit_info()
