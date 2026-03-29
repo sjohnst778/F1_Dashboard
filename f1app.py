@@ -79,7 +79,8 @@ def getlapsfor(session, driver):
     return laps
 
 def drawtrackfor(session):
-    fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
+    # Avoid calling fastf1's setup_mpl here to prevent timple recursion issues
+    # with Matplotlib unit converters in some environments.
     lap = session.laps.pick_fastest()
     pos = lap.get_pos_data()
     circuit_info = session.get_circuit_info()
@@ -862,11 +863,11 @@ round = int(race_info['RoundNumber'])
 with st.expander("Driver Standings", expanded=False):
     # Get the current drivers standings
     fig = showdriverstanding(year, round)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 with st.expander("Team Standings", expanded=False):
     fig = showteamstanding(year, round)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 st.write(f"You selected: {year} - {selected_race}")
 st.subheader("Selection Details")
@@ -901,7 +902,7 @@ with st.expander("Lap Comparison"):
     session = load_session_cached(year, selected_race, selected_session)
     lap_df = get_driver_lap_times_df(session, selected_driver1)
     st.subheader(f"{selected_driver1} — Lap Times")
-    st.dataframe(lap_df, hide_index=True, use_container_width=True)
+    st.dataframe(lap_df, hide_index=True, width='stretch')
 
     lap_options = lap_df['LapNumber'].tolist()
     selected_laps = st.multiselect(
