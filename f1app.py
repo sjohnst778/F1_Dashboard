@@ -582,14 +582,123 @@ def calculatemaxpointsforremainingseason(year, round):
     print(sprint_points, conventional_points)
     return sprint_points + conventional_points
 
+def getSpeedDifferenceChart(session, driver1, driver2):
+    """Plotly chart of (driver1 speed - driver2 speed) vs distance, coloured by who is faster."""
+    driver1_lap = session.laps.pick_drivers(driver1).pick_fastest()
+    driver2_lap = session.laps.pick_drivers(driver2).pick_fastest()
+    d1_tel = driver1_lap.get_car_data().add_distance()
+    d2_tel = driver2_lap.get_car_data().add_distance()
+    circuit_info = session.get_circuit_info()
+
+    # Sector boundary distances from overall fastest lap
+    ref_lap = session.laps.pick_fastest()
+    ref_tel = ref_lap.get_car_data().add_distance()
+    s1_end_dist = ref_tel.loc[ref_tel['Time'] <= ref_lap['Sector1Time'], 'Distance'].max()
+    s2_end_dist = ref_tel.loc[ref_tel['Time'] <= ref_lap['Sector1Time'] + ref_lap['Sector2Time'], 'Distance'].max()
+
+    # Interpolate both onto a shared distance grid (driver1's grid as reference)
+    dist = d1_tel['Distance'].to_numpy()
+    d1_speed = d1_tel['Speed'].to_numpy()
+    d2_speed_interp = np.interp(dist, d2_tel['Distance'].to_numpy(), d2_tel['Speed'].to_numpy())
+    diff = d1_speed - d2_speed_interp
+
+    d1_color = fpl.get_team_color(driver1_lap['Team'], session=session)
+    d2_color = fpl.get_team_color(driver2_lap['Team'], session=session)
+
+    # Split diff into two series: where d1 is faster (positive) and d2 is faster (negative)
+    diff_pos = np.where(diff >= 0, diff, 0)
+    diff_neg = np.where(diff < 0, diff, 0)
+
+    fig = go.Figure()
+
+    # Shaded fill: driver1 faster
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([dist, dist[::-1]]),
+        y=np.concatenate([diff_pos, np.zeros(len(dist))]),
+        fill='toself',
+        fillcolor=d1_color + '55',
+        line=dict(width=0),
+        name=f'{driver1} faster',
+        hoverinfo='skip',
+    ))
+
+    # Shaded fill: driver2 faster
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([dist, dist[::-1]]),
+        y=np.concatenate([diff_neg, np.zeros(len(dist))]),
+        fill='toself',
+        fillcolor=d2_color + '55',
+        line=dict(width=0),
+        name=f'{driver2} faster',
+        hoverinfo='skip',
+    ))
+
+    # Main diff line
+    fig.add_trace(go.Scatter(
+        x=dist,
+        y=diff,
+        mode='lines',
+        line=dict(color='white', width=1.5),
+        name=f'{driver1} − {driver2}',
+        hovertemplate='Distance: %{x:.0f} m<br>Δ Speed: %{y:.1f} km/h<extra></extra>',
+    ))
+
+    # Zero baseline
+    fig.add_hline(y=0, line=dict(color='grey', width=1, dash='dot'))
+
+    # Sector background bands
+    track_max = float(dist.max())
+    sector_bands = [
+        (0, s1_end_dist, 'rgba(79,195,247,0.06)'),
+        (s1_end_dist, s2_end_dist, 'rgba(255,241,118,0.06)'),
+        (s2_end_dist, track_max, 'rgba(206,147,216,0.06)'),
+    ]
+    for x0, x1, color in sector_bands:
+        fig.add_vrect(x0=x0, x1=x1, fillcolor=color, line_width=0, layer='below')
+
+    # Corner markers
+    sector_colors = {1: '#4FC3F7', 2: '#FFF176', 3: '#CE93D8'}
+    y_annot = float(np.min(diff)) - 5
+    for _, corner in circuit_info.corners.iterrows():
+        d = corner['Distance']
+        sector = 1 if d <= s1_end_dist else (2 if d <= s2_end_dist else 3)
+        fig.add_vline(x=d, line=dict(color='grey', width=1, dash='dot'))
+        fig.add_annotation(
+            x=d, y=y_annot,
+            text=f"{corner['Number']}{corner['Letter']}",
+            showarrow=False,
+            font=dict(color=sector_colors[sector], size=9),
+            yanchor='top',
+        )
+
+    fig.update_layout(
+        title=dict(
+            text=f"Speed Difference: {driver1} − {driver2}",
+            x=0.5,
+            font=dict(color='white', size=14),
+        ),
+        xaxis=dict(title='Distance (m)', color='white', showgrid=False),
+        yaxis=dict(title='Speed Difference (km/h)', color='white', showgrid=True,
+                   gridcolor='rgba(255,255,255,0.1)'),
+        legend=dict(font=dict(color='white')),
+        plot_bgcolor='black',
+        paper_bgcolor='black',
+        margin=dict(l=0, r=0, t=50, b=0),
+        height=350,
+    )
+    return fig
+
+
 def driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2):
     fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
     session = load_session_cached(year, selected_race, selected_session)
     fig1 = getSpeedTraceFor(session, selected_driver1, selected_driver2)
     fig2 = showqualifyingdeltas(session, drv_list=[selected_driver1,selected_driver2])
+    fig3 = getSpeedDifferenceChart(session, selected_driver1, selected_driver2)
     styled = showSectorTimesComparison(session, selected_driver1, selected_driver2)
     st.pyplot(fig2); plt.close(fig2)
     st.pyplot(fig1); plt.close(fig1)
+    st.plotly_chart(fig3, use_container_width=True)
     html = styled.to_html()
     components.html(html, height=300, scrolling=True)
 
