@@ -134,7 +134,7 @@ def drawtrackfor(session):
 def plotdriverslaptimes(session, driver):
     # Enable Matplotlib patches for plotting timedelta values and load
     # FastF1's dark color scheme
-    fpl.setup_mpl(mpl_timedelta_support=True, color_scheme='fastf1')
+    fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
     fig, ax = plt.subplots(figsize=(8, 8))
 
     for drv in driver:
@@ -167,7 +167,7 @@ def plotdriverslaptimes(session, driver):
 def plotsingledriverlaptimes(session, driver):
     # Enable Matplotlib patches for plotting timedelta values and load
     # FastF1's dark color scheme
-    f1.plotting.setup_mpl(mpl_timedelta_support=True, color_scheme='fastf1')
+    f1.plotting.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
     fig, ax = plt.subplots(figsize=(8, 8))
 
     driver_laps = session.laps.pick_drivers(driver).pick_quicklaps().reset_index()
@@ -550,7 +550,7 @@ def calculatemaxpointsforremainingseason(year, round):
     return sprint_points + conventional_points
 
 def driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2):
-    fpl.setup_mpl(mpl_timedelta_support=True, color_scheme='fastf1')
+    fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
     session = load_session_cached(year, selected_race, selected_session)
     fig1 = getSpeedTraceFor(session, selected_driver1, selected_driver2)
     fig2 = showqualifyingdeltas(session, drv_list=[selected_driver1,selected_driver2])
