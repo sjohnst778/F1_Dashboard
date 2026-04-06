@@ -1,4 +1,5 @@
 import os
+import re
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -496,18 +497,130 @@ def fastestlapstable(session):
     return df
 
 
+def plot_driver_race_laps(session, driver):
+    """Plotly scatter of all quick lap times for a driver, coloured by compound."""
+    laps = session.laps.pick_drivers(driver).pick_quicklaps().reset_index(drop=True)
+    if laps.empty:
+        return None
+    compound_colors = fpl.get_compound_mapping(session=session)
+    laps['LapTime_s'] = laps['LapTime'].dt.total_seconds()
+
+    # Build y-axis ticks formatted as m:ss.ms
+    y_min = laps['LapTime_s'].min()
+    y_max = laps['LapTime_s'].max()
+    tick_step = 0.5
+    tickvals = [v / 2 for v in range(int(y_min * 2) - 1, int(y_max * 2) + 2)]
+    ticktext = [f"{int(v // 60)}:{v % 60:05.2f}" for v in tickvals]
+
+    fig = go.Figure()
+    for compound, group in laps.groupby('Compound'):
+        color = compound_colors.get(compound, '#AAAAAA')
+        fig.add_trace(go.Scatter(
+            x=group['LapNumber'],
+            y=group['LapTime_s'],
+            mode='markers',
+            name=compound,
+            marker=dict(color=color, size=8),
+            customdata=group['LapTime'].apply(
+                lambda x: strftimedelta(x, '%m:%s.%ms') if pd.notna(x) else ''
+            ),
+            hovertemplate='Lap %{x}<br>Time: %{customdata}<extra>' + compound + '</extra>',
+        ))
+
+    fig.update_layout(
+        title=dict(text=f"{driver} — Lap Times", x=0.5, font=dict(color='white', size=14)),
+        xaxis=dict(title='Lap Number', color='white', showgrid=False, dtick=5),
+        yaxis=dict(
+            title='Lap Time',
+            color='white',
+            showgrid=True,
+            gridcolor='rgba(255,255,255,0.1)',
+            tickvals=tickvals,
+            ticktext=ticktext,
+        ),
+        legend=dict(font=dict(color='white')),
+        plot_bgcolor='black',
+        paper_bgcolor='black',
+        margin=dict(l=0, r=0, t=50, b=0),
+        height=350,
+    )
+    return fig
+
+
+def marshal_sector_location(sector_num, circuit_info):
+    """Return a human-readable location for a marshal sector, e.g. 'Between T3 & T4'."""
+    try:
+        ms = circuit_info.marshal_sectors
+        corners = circuit_info.corners
+        row = ms[ms['Number'] == sector_num]
+        if row.empty:
+            return ''
+        dist = float(row.iloc[0]['Distance'])
+        before = corners[corners['Distance'] <= dist]
+        after = corners[corners['Distance'] > dist]
+
+        def label(r):
+            return f"T{int(r['Number'])}{r['Letter']}".rstrip()
+
+        if not before.empty and not after.empty:
+            return f"Between {label(before.iloc[-1])} & {label(after.iloc[0])}"
+        elif not after.empty:
+            return f"Before {label(after.iloc[0])}"
+        elif not before.empty:
+            return f"After {label(before.iloc[-1])}"
+    except Exception:
+        pass
+    return ''
+
+
 def showracedetails(year, race_name, session_name):
     session = load_session_cached(year, race_name, session_name)
 
-    st.subheader("Fastest Laps")
-    st.dataframe(fastestlapstable(session), use_container_width=True)
-
-    fig1=showraceresults(session)
-    fig2=tyreStrategies(session)
-    fig3=driverlaptimes(session)
+    fig1 = showraceresults(session)
     st.pyplot(fig1); plt.close(fig1)
-    st.pyplot(fig2); plt.close(fig2)
+
+    st.subheader("Notable Events")
+    msgs = session.race_control_messages
+    if msgs is not None and not msgs.empty:
+        notable = msgs[
+            (msgs['Category'] == 'SafetyCar') |
+            ((msgs['Category'] == 'Flag') & (msgs['Flag'].isin(['RED', 'CHEQUERED', 'DOUBLE YELLOW'])))
+        ][['Lap', 'Category', 'Message']].reset_index(drop=True)
+        if not notable.empty:
+            try:
+                circuit_info = session.get_circuit_info()
+                def add_location(msg):
+                    m = re.search(r'TRACK SECTOR\s+(\d+)', msg, re.IGNORECASE)
+                    if m:
+                        return marshal_sector_location(int(m.group(1)), circuit_info)
+                    return ''
+                notable['Location'] = notable['Message'].apply(add_location)
+            except Exception:
+                pass
+            if len(notable) < 5:
+                st.dataframe(notable, use_container_width=True, hide_index=True, height='content')
+            else:
+                st.dataframe(notable, use_container_width=True, hide_index=True, height=213)
+        else:
+            st.caption("No notable events recorded for this session.")
+    else:
+        st.caption("Race control messages not available for this session.")
+
+    st.subheader("Fastest Laps")
+    ft = fastestlapstable(session)
+    event = st.dataframe(ft, use_container_width=True, on_select="rerun", selection_mode="single-row")
+    selected_rows = event.selection.rows
+    if selected_rows:
+        driver = ft.iloc[selected_rows[0]]['Driver']
+        fig = plot_driver_race_laps(session, driver)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+
+    fig3 = driverlaptimes(session)
     st.pyplot(fig3); plt.close(fig3)
+
+    fig2 = tyreStrategies(session)
+    st.pyplot(fig2); plt.close(fig2)
 
 def getSpeedTraceFor(session, driver1, driver2):
     driver1_lap = session.laps.pick_drivers(driver1).pick_fastest()
