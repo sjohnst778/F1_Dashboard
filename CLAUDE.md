@@ -24,6 +24,8 @@ Managed via `requirements.txt`. Key libraries:
 
 Install: `pip install -r requirements.txt`
 
+Note: `streamlit` is not in `requirements.txt` and must be installed separately: `pip install streamlit`
+
 ## Architecture
 
 Everything is in `f1app.py`. There are no separate modules, pages, or config files. The file is structured as:
@@ -63,7 +65,7 @@ Main area uses `st.expander` sections:
 1. Driver Standings — Ergast heatmap
 2. Team Standings — Ergast heatmap with team colours
 3. Track Map — Plotly, sector-coloured, uses FP1 data
-4. Session Overview — Fastest laps table + race position + tyre strategy + violin plot
+4. Session Overview — Race position chart, notable events table, fastest laps table (clickable), driver lap times violin, tyre strategy
 5. Lap Comparison — Single driver lap table + telemetry speed trace for selected lap(s)
 6. Driver Comparison — Qualifying deltas, speed trace overlay, speed difference chart, sector times table
 7. Championship — Who can still mathematically win
@@ -81,7 +83,9 @@ Main area uses `st.expander` sections:
 | `showteamstanding(year, round)` | Ergast constructor championship heatmap |
 | `tyreStrategies(session)` | Matplotlib horizontal bar tyre strategy chart |
 | `driverlaptimes(session)` | Seaborn violin + swarm plot for top-10 finishers |
-| `fastestlapstable(session)` | DataFrame of each driver's fastest lap |
+| `fastestlapstable(session)` | DataFrame of each driver's fastest lap (clickable — shows lap times chart) |
+| `plot_driver_race_laps(session, driver)` | Plotly scatter of all quick laps for a driver, coloured by compound |
+| `marshal_sector_location(sector_num, circuit_info)` | Maps a marshal sector number to a corner range e.g. "Between T3 & T4" |
 | `calculatemaxpointsforremainingseason(year, round)` | Max points still available |
 | `get_event_driver_abbreviations(year, event, session)` | Loads driver list without full telemetry |
 
@@ -92,3 +96,10 @@ Main area uses `st.expander` sections:
 - `rotate(xy, angle=...)` handles track coordinate rotation from circuit metadata
 - Session data is always loaded via `load_session_cached` — never call `session.load()` directly in UI code
 - Driver list for sidebar is loaded lightweight (no telemetry) via `get_event_driver_abbreviations`
+
+## Known Gotchas
+
+- **`round` is shadowed** — the global `round = int(race_info['RoundNumber'])` at the bottom of the file overwrites Python's built-in `round()`. Never use `round()` in any function — use `int()` instead.
+- **Session Overview chart order** — maintained in `showracedetails()`: race position → notable events → fastest laps (clickable) → driver lap times violin → tyre strategy.
+- **Notable events table** — filters `session.race_control_messages` for `SafetyCar` category and `RED`, `CHEQUERED`, `DOUBLE YELLOW` flags. Double yellow rows get a `Location` column derived from marshal sector distances cross-referenced with corner distances via `marshal_sector_location()`.
+- **Clickable fastest laps table** — uses `st.dataframe(on_select="rerun", selection_mode="single-row")`. Selected row index from Streamlit is 0-based so always use `.iloc[]` not `.loc[]` (table index starts at 1).
