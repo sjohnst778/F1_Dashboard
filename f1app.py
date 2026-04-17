@@ -81,7 +81,10 @@ def getlapsfor(session, driver):
 
 def drawtrackfor(session):
     lap = session.laps.pick_fastest()
-    pos = lap.get_pos_data()
+    try:
+        pos = lap.get_pos_data()
+    except KeyError:
+        return None
     circuit_info = session.get_circuit_info()
 
     track_angle = circuit_info.rotation / 180 * np.pi
@@ -630,9 +633,12 @@ def showracedetails(year, race_name, session_name):
 def getSpeedTraceFor(session, driver1, driver2):
     driver1_lap = session.laps.pick_drivers(driver1).pick_fastest()
     driver2_lap = session.laps.pick_drivers(driver2).pick_fastest()
-    driver1_tel = driver1_lap.get_car_data().add_distance()
-    driver2_tel = driver2_lap.get_car_data().add_distance()
-    circuit_info = session.get_circuit_info()
+    try:
+        driver1_tel = driver1_lap.get_car_data().add_distance()
+        driver2_tel = driver2_lap.get_car_data().add_distance()
+        circuit_info = session.get_circuit_info()
+    except KeyError:
+        return None
 
     # Calculate sector boundary distances from the overall fastest lap telemetry
     ref_lap = session.laps.pick_fastest()
@@ -704,13 +710,15 @@ def getSpeedDifferenceChart(session, driver1, driver2):
     """Plotly chart of (driver1 speed - driver2 speed) vs distance, coloured by who is faster."""
     driver1_lap = session.laps.pick_drivers(driver1).pick_fastest()
     driver2_lap = session.laps.pick_drivers(driver2).pick_fastest()
-    d1_tel = driver1_lap.get_car_data().add_distance()
-    d2_tel = driver2_lap.get_car_data().add_distance()
-    circuit_info = session.get_circuit_info()
-
     # Sector boundary distances from overall fastest lap
     ref_lap = session.laps.pick_fastest()
-    ref_tel = ref_lap.get_car_data().add_distance()
+    try:
+        d1_tel = driver1_lap.get_car_data().add_distance()
+        d2_tel = driver2_lap.get_car_data().add_distance()
+        ref_tel = ref_lap.get_car_data().add_distance()
+        circuit_info = session.get_circuit_info()
+    except KeyError:
+        return None
     s1_end_dist = ref_tel.loc[ref_tel['Time'] <= ref_lap['Sector1Time'], 'Distance'].max()
     s2_end_dist = ref_tel.loc[ref_tel['Time'] <= ref_lap['Sector1Time'] + ref_lap['Sector2Time'], 'Distance'].max()
 
@@ -820,8 +828,14 @@ def driverComparison(year, selected_race, selected_session, selected_driver1, se
     fig3 = getSpeedDifferenceChart(session, selected_driver1, selected_driver2)
     styled = showSectorTimesComparison(session, selected_driver1, selected_driver2)
     st.pyplot(fig2); plt.close(fig2)
-    st.pyplot(fig1); plt.close(fig1)
-    st.plotly_chart(fig3, width='stretch')
+    if fig1 is not None:
+        st.pyplot(fig1); plt.close(fig1)
+    else:
+        st.warning("Speed trace data not available for this session.")
+    if fig3 is not None:
+        st.plotly_chart(fig3, width='stretch')
+    else:
+        st.warning("Speed difference chart data not available for this session.")
     html = styled.to_html()
     components.html(html, height=300, scrolling=True)
 
@@ -1115,7 +1129,7 @@ st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
 st.sidebar.header("F1 Controls")
 
-year = st.sidebar.slider("Select Year", min_value=2018, max_value=2026, value=2026)
+year = st.sidebar.slider("Select Year", min_value=2015, max_value=2026, value=2026)
 schedule = getschedule(year)
 
 race_names = schedule[schedule['EventFormat'] != 'testing']['EventName'].tolist()
@@ -1141,56 +1155,62 @@ st.write(f"Date: {str(race_info['EventDate'])}")
 st.write(f"Round: {round}")
 st.write(f"Race: {selected_race}")
 
-with st.expander("Track Map"):
-    session = load_session_cached(year, selected_race, "FP1")
-    fig = drawtrackfor(session)
-    st.plotly_chart(fig, width='stretch')
+if year < 2018:
+    st.info("Detailed session data is not available for seasons prior to 2018. Only Driver and Team Standings are shown.")
+else:
+    with st.expander("Track Map"):
+        session = load_session_cached(year, selected_race, "FP1")
+        fig = drawtrackfor(session)
+        if fig is not None:
+            st.plotly_chart(fig, width='stretch')
+        else:
+            st.warning("Track map data not available for this session.")
 
-sessions = []
-for col in schedule.columns:
-    if col.startswith("Session") and not col.endswith("Date") and not col.endswith("DateUtc"):
-        val = race_info[col]
-        if pd.notna(val):
-            sessions.append(val)
-selected_session = st.sidebar.selectbox("Select Session", sessions)
+    sessions = []
+    for col in schedule.columns:
+        if col.startswith("Session") and not col.endswith("Date") and not col.endswith("DateUtc"):
+            val = race_info[col]
+            if pd.notna(val):
+                sessions.append(val)
+    selected_session = st.sidebar.selectbox("Select Session", sessions)
 
-driver_codes = get_event_driver_abbreviations(year, selected_race, selected_session)
-selected_driver1 = st.sidebar.selectbox("Select Driver", driver_codes)
-selected_driver2 = st.sidebar.selectbox("Select Comparison Driver", driver_codes)
+    driver_codes = get_event_driver_abbreviations(year, selected_race, selected_session)
+    selected_driver1 = st.sidebar.selectbox("Select Driver", driver_codes)
+    selected_driver2 = st.sidebar.selectbox("Select Comparison Driver", driver_codes)
 
-with st.expander("Session Overview"):
-    showracedetails(year, selected_race, selected_session)
+    with st.expander("Session Overview"):
+        showracedetails(year, selected_race, selected_session)
 
-with st.expander("Lap Comparison"):
-    session = load_session_cached(year, selected_race, selected_session)
-    lap_df = get_driver_lap_times_df(session, selected_driver1)
-    st.subheader(f"{selected_driver1} — Lap Times")
-    st.dataframe(lap_df, hide_index=True, width='stretch')
+    with st.expander("Lap Comparison"):
+        session = load_session_cached(year, selected_race, selected_session)
+        lap_df = get_driver_lap_times_df(session, selected_driver1)
+        st.subheader(f"{selected_driver1} — Lap Times")
+        st.dataframe(lap_df, hide_index=True, width='stretch')
 
-    lap_options = lap_df['LapNumber'].tolist()
-    selected_laps = st.multiselect(
-        "Select 1 or 2 laps to compare",
-        options=lap_options,
-        max_selections=2,
-        format_func=lambda n: f"Lap {n}",
-        key='compare_laps_selection',
-    )
+        lap_options = lap_df['LapNumber'].tolist()
+        selected_laps = st.multiselect(
+            "Select 1 or 2 laps to compare",
+            options=lap_options,
+            max_selections=2,
+            format_func=lambda n: f"Lap {n}",
+            key='compare_laps_selection',
+        )
 
-    if selected_laps and st.button("Show Lap Telemetry"):
-        st.session_state.compare_laps_tel_laps = selected_laps
+        if selected_laps and st.button("Show Lap Telemetry"):
+            st.session_state.compare_laps_tel_laps = selected_laps
 
-    if st.session_state.get('compare_laps_tel_laps'):
-        fig = plot_lap_telemetry(session, selected_driver1,
-                                 st.session_state.compare_laps_tel_laps)
-        st.pyplot(fig)
-        plt.close(fig)
+        if st.session_state.get('compare_laps_tel_laps'):
+            fig = plot_lap_telemetry(session, selected_driver1,
+                                     st.session_state.compare_laps_tel_laps)
+            st.pyplot(fig)
+            plt.close(fig)
 
-with st.expander("Driver Comparison"):
-    driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
+    with st.expander("Driver Comparison"):
+        driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
 
-with st.expander("Championship"):
-    driver_standings = getdriverstandings(year, round)
-    points = calculatemaxpointsforremainingseason(year, round)
-    calculatewhocanwin(driver_standings, points)
+    with st.expander("Championship"):
+        driver_standings = getdriverstandings(year, round)
+        points = calculatemaxpointsforremainingseason(year, round)
+        calculatewhocanwin(driver_standings, points)
 
 st.info("F1 Dashboard\nBuilt by Steve Johnstone 2026\nDashboard built using FastF1")
