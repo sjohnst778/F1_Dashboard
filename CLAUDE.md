@@ -56,19 +56,24 @@ Both Plotly and Matplotlib are used. Prefer Plotly for new interactive charts. M
 ## UI Structure
 
 Sidebar controls drive everything:
-- **Year** (slider, 1985–2026)
+- **Year** (slider, 2010–2026)
 - **Race** (selectbox from schedule, excludes testing events)
-- **Session** (Race, FP1–3, Qualifying, Sprint, etc.)
-- **Driver 1 / Driver 2** (abbreviations loaded from session results without full telemetry)
+- **Session** (Race, FP1–3, Qualifying, Sprint, etc.) — only shown for years ≥ 2018
+- **Driver 1 / Driver 2** (abbreviations loaded from session results without full telemetry) — only shown for years ≥ 2018
+
+### Year gating
+
+For **years < 2018**, only Driver Standings and Team Standings are shown, plus an info message. All session/telemetry sections are hidden because FastF1 data is too sparse for reliable display.
 
 Main area uses `st.expander` sections:
-1. Driver Standings — Ergast heatmap
-2. Team Standings — Ergast heatmap with team colours
-3. Track Map — Plotly, sector-coloured, uses FP1 data
-4. Session Overview — Race position chart, notable events table, fastest laps table (clickable), driver lap times violin, tyre strategy
-5. Lap Comparison — Single driver lap table + telemetry speed trace for selected lap(s)
-6. Driver Comparison — Qualifying deltas, speed trace overlay, speed difference chart, sector times table
-7. Championship — Who can still mathematically win
+1. Driver Standings — Ergast heatmap (all years)
+2. Team Standings — Ergast heatmap with team colours (all years)
+3. Selection Details — Year, country, date, round, race name, and race weather summary (air temp, track temp, humidity, wind speed, rain indicator — loaded from Race session weather_data, years ≥ 2018 only)
+4. Track Map — Plotly, sector-coloured, uses FP1 data (years ≥ 2018)
+5. Session Overview — Race position chart, notable events table, fastest laps table (clickable), driver lap times violin, tyre strategy (years ≥ 2018)
+6. Lap Comparison — Single driver lap table + telemetry speed trace for selected lap(s) (years ≥ 2018)
+7. Driver Comparison — Qualifying deltas, speed trace overlay, speed difference chart, sector times table (years ≥ 2018)
+8. Championship — Who can still mathematically win (years ≥ 2018)
 
 ## Key Functions
 
@@ -103,3 +108,5 @@ Main area uses `st.expander` sections:
 - **Session Overview chart order** — maintained in `showracedetails()`: race position → notable events → fastest laps (clickable) → driver lap times violin → tyre strategy.
 - **Notable events table** — filters `session.race_control_messages` for `SafetyCar` category and `RED`, `CHEQUERED`, `DOUBLE YELLOW` flags. Double yellow rows get a `Location` column derived from marshal sector distances cross-referenced with corner distances via `marshal_sector_location()`.
 - **Clickable fastest laps table** — uses `st.dataframe(on_select="rerun", selection_mode="single-row")`. Selected row index from Streamlit is 0-based so always use `.iloc[]` not `.loc[]` (table index starts at 1).
+- **Missing telemetry (older/some sessions)** — `get_car_data()`, `get_pos_data()`, and `session.get_circuit_info()` all raise `KeyError` when FastF1 has no data for that driver/session. `drawtrackfor`, `getSpeedTraceFor`, and `getSpeedDifferenceChart` all catch `KeyError` and return `None`; callers check for `None` and show `st.warning()` instead of crashing.
+- **Pre-2019 tyre compounds** — older races use compound names like `SUPERSOFT`, `ULTRASOFT`, `HYPERSOFT` rather than `SOFT`/`MEDIUM`/`HARD`. `driverlaptimes()` builds `hue_order` dynamically from the actual compounds present and filters laps to only those in the compound mapping, to avoid seaborn's `NaN is not in list` error.
