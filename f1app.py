@@ -357,13 +357,18 @@ def driverlaptimes(session):
                    palette=fpl.get_driver_color_mapping(session=session)
     )
     
+    compound_mapping = fpl.get_compound_mapping(session=session)
+    driver_laps = driver_laps[driver_laps['Compound'].isin(compound_mapping.keys())]
+    hue_order = [c for c in ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET',
+                              'SUPERSOFT', 'ULTRASOFT', 'HYPERSOFT']
+                 if c in driver_laps['Compound'].values]
     sns.swarmplot(data=driver_laps,
                   x='Driver',
                   y='LapTime(s)',
                   hue='Compound',
                   order=finishing_order,
-                  palette=fpl.get_compound_mapping(session=session),
-                  hue_order=['SOFT', 'MEDIUM', 'HARD','INTERMEDIATE','WET'],
+                  palette=compound_mapping,
+                  hue_order=hue_order,
                   linewidth=0,
                   size=4
     )
@@ -1110,7 +1115,7 @@ st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
 st.sidebar.header("F1 Controls")
 
-year = st.sidebar.slider("Select Year", min_value=1985, max_value=2026, value=2026)
+year = st.sidebar.slider("Select Year", min_value=2018, max_value=2026, value=2026)
 schedule = getschedule(year)
 
 race_names = schedule[schedule['EventFormat'] != 'testing']['EventName'].tolist()
