@@ -1155,6 +1155,22 @@ st.write(f"Date: {str(race_info['EventDate'])}")
 st.write(f"Round: {round}")
 st.write(f"Race: {selected_race}")
 
+if year >= 2018:
+    try:
+        weather_session = load_session_cached(year, selected_race, "R")
+        wd = weather_session.weather_data
+        if wd is not None and not wd.empty:
+            avg_air = wd['AirTemp'].mean()
+            avg_track = wd['TrackTemp'].mean()
+            avg_humidity = wd['Humidity'].mean()
+            avg_wind = wd['WindSpeed'].mean()
+            rainfall = wd['Rainfall'].any()
+            st.write(f"**Weather (Race):** Air {avg_air:.1f}°C | Track {avg_track:.1f}°C | "
+                     f"Humidity {avg_humidity:.0f}% | Wind {avg_wind:.1f} km/h | "
+                     f"{'🌧 Rain' if rainfall else 'Dry'}")
+    except Exception:
+        pass
+
 if year < 2018:
     st.info("Detailed session data is not available for seasons prior to 2018. Only Driver and Team Standings are shown.")
 else:
