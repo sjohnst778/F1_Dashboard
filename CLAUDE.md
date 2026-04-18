@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A single-page Streamlit dashboard for interrogating historical F1 race data. All application logic lives in `f1app.py`. Data is sourced from the FastF1 library (cached locally) and the Ergast API.
+A Streamlit dashboard for interrogating historical F1 race data. Core application logic lives in `f1app.py`; ML-based race prediction logic is in `f1_predictor.py`. Data is sourced from the FastF1 library (cached locally), the Ergast API, and the Open-Meteo weather API.
 
 ## Running the App
 
