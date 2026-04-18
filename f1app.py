@@ -1387,6 +1387,35 @@ def _show_race_prediction():
         )
         st.plotly_chart(fig_imp, use_container_width=True)
 
+        st.markdown("**Model**")
+        st.markdown(
+            "Gradient Boosting — an ensemble of 200 shallow decision trees built sequentially, "
+            "each one correcting the errors of the previous. Two separate classifiers are trained: "
+            "one for **win** (P1) and one for **podium** (top 3). Win probability is used to order "
+            "the podium steps; podium probability is shown as the wider bar in the chart above."
+        )
+
+        st.markdown("**Setup**")
+        st.code(
+            "n_estimators=200  # trees in the ensemble\n"
+            "learning_rate=0.05  # each tree contributes 5% of its correction\n"
+            "max_depth=3  # shallow trees — at most 8 leaves\n"
+            "subsample=0.8  # each tree sees 80% of rows (reduces overfitting)",
+            language="python",
+        )
+        st.markdown(
+            "Current season races are weighted up to **~15× more** than races from two seasons ago, "
+            "combining the regulation-change boost with a within-season recency factor."
+        )
+
+        st.markdown("**Limitations**")
+        st.markdown(
+            "- **Small dataset** — ~1,400 rows across 3 seasons. The model is directional, not precise.\n"
+            "- **Grid position** — before qualifying, grid is estimated from championship order, which blurs predictions significantly. After qualifying it becomes much more reliable.\n"
+            "- **No intra-race strategy** — safety cars, pit windows, and tyre deg aren't modelled.\n"
+            "- **Wet is binary** — a damp track and a monsoon are treated the same."
+        )
+
 
 st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
