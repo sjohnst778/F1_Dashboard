@@ -6,3 +6,5 @@ matplotlib
 seaborn
 jinja2
 streamlit
+scikit-learn
+requests
