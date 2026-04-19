@@ -1,7 +1,6 @@
 import os
 import re
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -610,9 +609,9 @@ def showracedetails(year, race_name, session_name):
             except Exception:
                 pass
             if len(notable) < 5:
-                st.dataframe(notable, use_container_width=True, hide_index=True, height='content')
+                st.dataframe(notable, width='stretch', hide_index=True, height='content')
             else:
-                st.dataframe(notable, use_container_width=True, hide_index=True, height=213)
+                st.dataframe(notable, width='stretch', hide_index=True, height=213)
         else:
             st.caption("No notable events recorded for this session.")
     else:
@@ -620,13 +619,13 @@ def showracedetails(year, race_name, session_name):
 
     st.subheader("Fastest Laps")
     ft = fastestlapstable(session)
-    event = st.dataframe(ft, use_container_width=True, on_select="rerun", selection_mode="single-row")
+    event = st.dataframe(ft, width='stretch', on_select="rerun", selection_mode="single-row")
     selected_rows = event.selection.rows
     if selected_rows:
         driver = ft.iloc[selected_rows[0]]['Driver']
         fig = plot_driver_race_laps(session, driver)
         if fig:
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     fig3 = driverlaptimes(session)
     st.pyplot(fig3); plt.close(fig3)
@@ -842,8 +841,7 @@ def driverComparison(year, selected_race, selected_session, selected_driver1, se
         st.plotly_chart(fig3, width='stretch')
     else:
         st.warning("Speed difference chart data not available for this session.")
-    html = styled.to_html()
-    components.html(html, height=300, scrolling=True)
+    st.html(styled.to_html())
 
 def get_driver_lap_times_df(session, driver):
     """Return a DataFrame of valid lap times for a driver with formatted times."""
@@ -1370,7 +1368,7 @@ def _show_race_prediction():
     # ---- Podium visual ----
     st.markdown("### Predicted Podium")
     podium_fig = _build_podium_figure(predictions.head(3), driver_colors)
-    st.plotly_chart(podium_fig, use_container_width=True)
+    st.plotly_chart(podium_fig, width='stretch')
 
     # ---- Full probability bar chart ----
     st.markdown("### Win Probability — All Drivers")
@@ -1407,7 +1405,7 @@ def _show_race_prediction():
         margin=dict(l=0, r=0, t=30, b=0),
         height=350,
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width='stretch')
 
     # ---- Feature importances ----
     with st.expander("Model feature importances (win model)", expanded=False):
@@ -1426,7 +1424,7 @@ def _show_race_prediction():
             margin=dict(l=0, r=0, t=10, b=0),
             height=280,
         )
-        st.plotly_chart(fig_imp, use_container_width=True)
+        st.plotly_chart(fig_imp, width='stretch')
 
         st.markdown("**Model**")
         st.markdown(
@@ -1463,7 +1461,7 @@ st.title("F1 Dashboard - FastF1")
 
 _pic_cols = st.columns(4)
 for _col, _img in zip(_pic_cols, sorted(os.listdir("pics"))):
-    _col.image(f"pics/{_img}", use_container_width=True)
+    _col.image(f"pics/{_img}", width='stretch')
 
 st.sidebar.header("F1 Controls")
 
