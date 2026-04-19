@@ -64,7 +64,7 @@ def getschedule(year):
     return f1.get_event_schedule(year)
 
 
-@st.cache_resource(max_entries=3)
+@st.cache_resource(max_entries=2)
 def load_session_cached(year, event, session_name):
     session = f1.get_session(year, event, session_name)
     session.load()
@@ -685,11 +685,13 @@ def getSpeedTraceFor(session, driver1, driver2):
                 f"{session.event['EventName']} {session.event.year} {session.name}")
     return fig
 
+@st.cache_data(ttl=3600)
 def getdriverstandings(year, round):
     ergast = Ergast()
     standings = ergast.get_driver_standings(season=year, round=round)
     return standings.content[0]
 
+@st.cache_data(ttl=3600)
 def calculatemaxpointsforremainingseason(year, round):
     POINTS_FOR_SPRINT = 8 + 25 # Winning the sprint and race
     POINTS_FOR_CONVENTIONAL = 25 # Winning the race
@@ -925,6 +927,7 @@ _CONSTRUCTOR_COLORS = {
     'marussia':     ('#E04B09', 'Marussia'),
 }
 
+@st.cache_data(ttl=3600)
 def showteamstanding(year, round):
     ergast = Ergast()
     races = ergast.get_race_schedule(year)
@@ -1024,6 +1027,7 @@ def showteamstanding(year, round):
     return fig
 
 
+@st.cache_data(ttl=3600)
 def showdriverstanding(year, round):
     ergast = Ergast()
     races = ergast.get_race_schedule(year)
@@ -1420,6 +1424,11 @@ def _show_race_prediction():
 st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
 st.sidebar.header("F1 Controls")
+
+if st.sidebar.button("Clear Cache", help="Free memory by clearing all cached session data"):
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.rerun()
 
 year = st.sidebar.slider("Select Year", min_value=2015, max_value=2026, value=2026)
 schedule = getschedule(year)
