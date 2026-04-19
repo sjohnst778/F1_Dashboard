@@ -22,6 +22,7 @@ Managed via `requirements.txt`. Key libraries:
 - `pandas` / `numpy` — Data manipulation
 - `scikit-learn` — GradientBoostingClassifier for race prediction (`f1_predictor.py`)
 - `requests` — Open-Meteo weather API calls (`f1_predictor.py`)
+- `feedparser` — Parses Autosport F1 RSS feed for the news section
 - `timple` — Timedelta formatting via `strftimedelta`
 
 Install: `pip install -r requirements.txt`
@@ -36,8 +37,9 @@ Two Python files:
   1. Imports and cache setup
   2. Helper/utility functions
   3. Data-fetching and plotting functions
-  4. `_build_podium_figure()` and `_show_race_prediction()` (prediction UI helpers)
-  5. Streamlit UI (sidebar controls + expander sections at the bottom of the file)
+  4. `_strip_html()`, `fetch_f1_news()`, `_show_f1_news()` — news feed helpers
+  5. `_build_podium_figure()` and `_show_race_prediction()` (prediction UI helpers)
+  6. Streamlit UI (sidebar controls + expander sections at the bottom of the file)
 
 - **`f1_predictor.py`** — self-contained ML module for race podium prediction. Imported into `f1app.py` as `predictor`. Contains no Streamlit UI logic except `@st.cache_data` / `@st.cache_resource` decorators for caching.
 
@@ -75,12 +77,13 @@ Main area uses `st.expander` sections:
 1. Driver Standings — Ergast heatmap (all years)
 2. Team Standings — Ergast heatmap with team colours (all years)
 3. Championship — Who can still mathematically win (all years)
-4. Next Race Prediction — ML podium prediction with Plotly podium steps visual (all years)
-5. Selection Details — Year, country, date, round, race name, and race weather summary (air temp, track temp, humidity, wind speed, rain indicator — loaded from Race session weather_data, years ≥ 2018 only)
-6. Track Map — Plotly, sector-coloured, uses FP1 data (years ≥ 2018)
-7. Session Overview — Race position chart, notable events table, fastest laps table (clickable), driver lap times violin, tyre strategy (years ≥ 2018)
-8. Lap Comparison — Single driver lap table + telemetry speed trace for selected lap(s) (years ≥ 2018)
-9. Driver Comparison — Qualifying deltas, speed trace overlay, speed difference chart, sector times table (years ≥ 2018)
+4. F1 News (Autosport) — Latest articles from Autosport RSS feed, cached 15 min (all years)
+5. Next Race Prediction — ML podium prediction with Plotly podium steps visual (all years)
+6. Selection Details — Year, country, date, round, race name, and race weather summary (air temp, track temp, humidity, wind speed, rain indicator — loaded from Race session weather_data, years ≥ 2018 only)
+7. Track Map — Plotly, sector-coloured, uses FP1 data (years ≥ 2018)
+8. Session Overview — Race position chart, notable events table, fastest laps table (clickable), driver lap times violin, tyre strategy (years ≥ 2018)
+9. Lap Comparison — Single driver lap table + telemetry speed trace for selected lap(s) (years ≥ 2018)
+10. Driver Comparison — Qualifying deltas, speed trace overlay, speed difference chart, sector times table (years ≥ 2018)
 
 ## Key Functions
 
@@ -102,6 +105,9 @@ Main area uses `st.expander` sections:
 | `marshal_sector_location(sector_num, circuit_info)` | Maps a marshal sector number to a corner range e.g. "Between T3 & T4" |
 | `calculatemaxpointsforremainingseason(year, round)` | Max points still available |
 | `get_event_driver_abbreviations(year, event, session)` | Loads driver list without full telemetry |
+| `_strip_html(text)` | Strips HTML tags and decodes entities from RSS feed summaries |
+| `fetch_f1_news(max_items)` | Fetches and caches Autosport F1 RSS feed (ttl=900s); returns list of article dicts |
+| `_show_f1_news()` | Renders the F1 News expander UI with headlines, dates, and summaries |
 | `_build_podium_figure(predictions, driver_colors)` | Plotly podium steps visual (P2/P1/P3 blocks in team colours) |
 | `_show_race_prediction()` | Renders the full Race Prediction expander UI |
 
@@ -141,3 +147,4 @@ Main area uses `st.expander` sections:
 - **`run_prediction_pipeline` is `@st.cache_resource`** — it caches trained model objects across reruns. Changing `num_seasons` or `reg_change_boost` in the UI will retrain because they are part of the cache key. The wet label step (`build_wet_labels`) loads FastF1 sessions lightly (no telemetry) and is separately `@st.cache_data` so it survives app restarts.
 - **Open-Meteo weather is only available within 16 days** — `fetch_race_weather` returns `None` beyond that window and the UI falls back to a manual wet/dry toggle.
 - **`round` shadow applies in `f1_predictor.py` too** — that module never imports from `f1app.py` and doesn't shadow `round`, but be aware if you ever cross-import.
+- **Streamlit API versions** — use `width='stretch'` not `use_container_width=True` for `st.plotly_chart` and `st.dataframe`. Use `st.html()` not `components.html()` for rendering raw HTML (e.g. styled DataFrames via `.to_html()`). `st.components.v1` is no longer imported.
