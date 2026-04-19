@@ -1423,6 +1423,11 @@ def _show_race_prediction():
 
 st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
+
+_pic_cols = st.columns(4)
+for _col, _img in zip(_pic_cols, sorted(os.listdir("pics"))):
+    _col.image(f"pics/{_img}", use_container_width=True)
+
 st.sidebar.header("F1 Controls")
 
 if st.sidebar.button("Clear Cache", help="Free memory by clearing all cached session data"):
@@ -1533,4 +1538,6 @@ else:
     with st.expander("Driver Comparison"):
         driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
 
-st.info("F1 Dashboard\nBuilt by Steve Johnstone 2026\nDashboard built using FastF1")
+st.info("F1 Dashboard\nBuilt by Steve Johnstone 2026\n")
+st.info("F1 is a registered trademark of Formula One Licensing B.V. All data sourced from Ergast API and FastF1.")
+st.info("This dashboard is for educational purposes only and does not represent the views of Formula One or any affiliated parties.")
