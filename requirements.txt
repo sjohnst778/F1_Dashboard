@@ -8,3 +8,4 @@ jinja2
 streamlit
 scikit-learn
 requests
+feedparser

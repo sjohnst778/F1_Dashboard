@@ -18,6 +18,9 @@ from typing import List
 from plotly.io import show
 from matplotlib.colors import to_rgb
 import f1_predictor as predictor
+import feedparser
+import html
+import re as _re
 
 os.makedirs('f1cache', exist_ok=True)
 f1.Cache.enable_cache('f1cache')
@@ -1203,6 +1206,40 @@ def _build_podium_figure(predictions: pd.DataFrame, driver_colors: dict) -> go.F
     return fig
 
 
+def _strip_html(text: str) -> str:
+    text = _re.sub(r"<[^>]+>", "", text)
+    return html.unescape(text).strip()
+
+
+@st.cache_data(ttl=900)
+def fetch_f1_news(max_items: int = 8):
+    feed = feedparser.parse("https://www.autosport.com/rss/feed/f1")
+    articles = []
+    for entry in feed.entries[:max_items]:
+        articles.append({
+            "title": entry.get("title", ""),
+            "link": entry.get("link", ""),
+            "summary": _strip_html(entry.get("summary", "")),
+            "published": entry.get("published", ""),
+        })
+    return articles
+
+
+def _show_f1_news():
+    articles = fetch_f1_news()
+    if not articles:
+        st.warning("Could not load news feed.")
+        return
+    st.caption("News sourced from [Autosport](https://www.autosport.com/f1/) via RSS feed.")
+    for article in articles:
+        st.markdown(f"**[{article['title']}]({article['link']})**")
+        if article["published"]:
+            st.caption(article["published"])
+        if article["summary"]:
+            st.write(article["summary"])
+        st.divider()
+
+
 def _show_race_prediction():
     """Render the Race Prediction expander contents."""
     st.subheader("Next Race Podium Prediction")
@@ -1457,6 +1494,9 @@ with st.expander("Championship", expanded=False):
     driver_standings = getdriverstandings(year, round)
     points = calculatemaxpointsforremainingseason(year, round)
     calculatewhocanwin(driver_standings, points)
+
+with st.expander("F1 News (Autosport)", expanded=False):
+    _show_f1_news()
 
 with st.expander("Next Race Prediction", expanded=False):
     _show_race_prediction()
