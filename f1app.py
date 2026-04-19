@@ -1208,7 +1208,7 @@ def _show_race_prediction():
     st.subheader("Next Race Podium Prediction")
     st.caption(
         "Trained on the last 3 seasons of race results. "
-        "Current season data is heavily weighted to account for regulation changes. "
+        "Current season data is heavily weighted to account for regulation changes.\n"
         "For fun only — not fantasy f1 advice!"
     )
 
