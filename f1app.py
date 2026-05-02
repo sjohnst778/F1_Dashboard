@@ -690,8 +690,12 @@ def getSpeedTraceFor(session, driver1, driver2):
 @st.cache_data(ttl=3600)
 def getdriverstandings(year, round):
     ergast = Ergast()
-    standings = ergast.get_driver_standings(season=year, round=round)
-    return standings.content[0]
+    # Walk back to the most recent round that has standings (race may not have occurred yet)
+    for rnd in range(round, 0, -1):
+        standings = ergast.get_driver_standings(season=year, round=rnd)
+        if standings.content:
+            return standings.content[0]
+    return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def calculatemaxpointsforremainingseason(year, round):
@@ -1490,8 +1494,11 @@ with st.expander("Team Standings", expanded=False):
 
 with st.expander("Championship", expanded=False):
     driver_standings = getdriverstandings(year, round)
-    points = calculatemaxpointsforremainingseason(year, round)
-    calculatewhocanwin(driver_standings, points)
+    if driver_standings.empty:
+        st.info("No standings data available yet for this race.")
+    else:
+        points = calculatemaxpointsforremainingseason(year, round)
+        calculatewhocanwin(driver_standings, points)
 
 with st.expander("F1 News (Autosport)", expanded=False):
     _show_f1_news()
