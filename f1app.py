@@ -256,9 +256,12 @@ def showraceresults(session):
         if len(drv_laps) == 0:
             continue
         abb = drv_laps['Driver'].iloc[0]
-        style = f1.plotting.get_driver_style(identifier=abb,
-                                             style=['color', 'linestyle'],
-                                                session=session)
+        try:
+            style = f1.plotting.get_driver_style(identifier=abb,
+                                                 style=['color', 'linestyle'],
+                                                 session=session)
+        except Exception:
+            style = {'color': 'grey', 'linestyle': 'solid'}
         ax.plot(drv_laps['LapNumber'], drv_laps['Position'],
                 label=abb, **style)
     ax.set_ylim([20.5, 0.5])
