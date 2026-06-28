@@ -1,7 +1,6 @@
 import os
 import re
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -18,6 +17,10 @@ from timple.timedelta import strftimedelta
 from typing import List
 from plotly.io import show
 from matplotlib.colors import to_rgb
+import f1_predictor as predictor
+import feedparser
+import html
+import re as _re
 
 os.makedirs('f1cache', exist_ok=True)
 f1.Cache.enable_cache('f1cache')
@@ -64,7 +67,7 @@ def getschedule(year):
     return f1.get_event_schedule(year)
 
 
-@st.cache_resource(max_entries=3)
+@st.cache_resource(max_entries=2)
 def load_session_cached(year, event, session_name):
     session = f1.get_session(year, event, session_name)
     session.load()
@@ -618,9 +621,9 @@ def showracedetails(year, race_name, session_name):
             except Exception:
                 pass
             if len(notable) < 5:
-                st.dataframe(notable, use_container_width=True, hide_index=True, height='content')
+                st.dataframe(notable, width='stretch', hide_index=True, height='content')
             else:
-                st.dataframe(notable, use_container_width=True, hide_index=True, height=213)
+                st.dataframe(notable, width='stretch', hide_index=True, height=213)
         else:
             st.caption("No notable events recorded for this session.")
     else:
@@ -628,13 +631,13 @@ def showracedetails(year, race_name, session_name):
 
     st.subheader("Fastest Laps")
     ft = fastestlapstable(session)
-    event = st.dataframe(ft, use_container_width=True, on_select="rerun", selection_mode="single-row")
+    event = st.dataframe(ft, width='stretch', on_select="rerun", selection_mode="single-row")
     selected_rows = event.selection.rows
     if selected_rows:
         driver = ft.iloc[selected_rows[0]]['Driver']
         fig = plot_driver_race_laps(session, driver)
         if fig:
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     fig3 = driverlaptimes(session)
     st.pyplot(fig3); plt.close(fig3)
@@ -696,11 +699,17 @@ def getSpeedTraceFor(session, driver1, driver2):
                 f"{session.event['EventName']} {session.event.year} {session.name}")
     return fig
 
+@st.cache_data(ttl=3600)
 def getdriverstandings(year, round):
     ergast = Ergast()
-    standings = ergast.get_driver_standings(season=year, round=round)
-    return standings.content[0]
+    # Walk back to the most recent round that has standings (race may not have occurred yet)
+    for rnd in range(round, 0, -1):
+        standings = ergast.get_driver_standings(season=year, round=rnd)
+        if standings.content:
+            return standings.content[0]
+    return pd.DataFrame()
 
+@st.cache_data(ttl=3600)
 def calculatemaxpointsforremainingseason(year, round):
     POINTS_FOR_SPRINT = 8 + 25 # Winning the sprint and race
     POINTS_FOR_CONVENTIONAL = 25 # Winning the race
@@ -848,8 +857,7 @@ def driverComparison(year, selected_race, selected_session, selected_driver1, se
         st.plotly_chart(fig3, width='stretch')
     else:
         st.warning("Speed difference chart data not available for this session.")
-    html = styled.to_html()
-    components.html(html, height=300, scrolling=True)
+    st.html(styled.to_html())
 
 def get_driver_lap_times_df(session, driver):
     """Return a DataFrame of valid lap times for a driver with formatted times."""
@@ -936,6 +944,7 @@ _CONSTRUCTOR_COLORS = {
     'marussia':     ('#E04B09', 'Marussia'),
 }
 
+@st.cache_data(ttl=3600)
 def showteamstanding(year, round):
     ergast = Ergast()
     races = ergast.get_race_schedule(year)
@@ -1035,6 +1044,7 @@ def showteamstanding(year, round):
     return fig
 
 
+@st.cache_data(ttl=3600)
 def showdriverstanding(year, round):
     ergast = Ergast()
     races = ergast.get_race_schedule(year)
@@ -1137,9 +1147,344 @@ def showdriverstanding(year, round):
     return fig
 
 
+def _build_podium_figure(predictions: pd.DataFrame, driver_colors: dict) -> go.Figure:
+    """
+    Build a Plotly figure showing the predicted podium as classic stepped blocks.
+    P2 left (medium height), P1 centre (tallest), P3 right (shortest).
+    Driver names are rendered in their team colour.
+    """
+    order = [1, 0, 2]  # P2, P1, P3 column order for classic podium look
+    step_heights = [0.70, 1.0, 0.50]
+    x_positions = [0, 1, 2]
+    labels = ['P2', 'P1', 'P3']
+
+    fig = go.Figure()
+
+    for col_idx, (rank_idx, height, x, label) in enumerate(
+            zip(order, step_heights, x_positions, labels)):
+        if rank_idx >= len(predictions):
+            continue
+
+        row = predictions.iloc[rank_idx]
+        driver = row['driverCode']
+        color = driver_colors.get(driver, '#AAAAAA')
+        podium_prob = row['podium_prob']
+        win_prob = row['win_prob']
+
+        # Podium step block
+        fig.add_shape(
+            type='rect',
+            x0=x - 0.38, x1=x + 0.38,
+            y0=0, y1=height,
+            fillcolor=color,
+            opacity=0.85,
+            line=dict(color='white', width=1),
+        )
+
+        # Position label (P1/P2/P3) inside block
+        fig.add_annotation(
+            x=x, y=height / 2,
+            text=f'<b>{label}</b>',
+            showarrow=False,
+            font=dict(size=22, color='white'),
+            xanchor='center', yanchor='middle',
+        )
+
+        # Driver name above block
+        fig.add_annotation(
+            x=x, y=height + 0.06,
+            text=f'<b>{driver}</b>',
+            showarrow=False,
+            font=dict(size=15, color=color),
+            xanchor='center', yanchor='bottom',
+        )
+
+        # Probability badges below block
+        fig.add_annotation(
+            x=x, y=-0.12,
+            text=f'Win {win_prob*100:.0f}%  |  Podium {podium_prob*100:.0f}%',
+            showarrow=False,
+            font=dict(size=11, color='#CCCCCC'),
+            xanchor='center', yanchor='top',
+        )
+
+    fig.update_layout(
+        xaxis=dict(visible=False, range=[-0.6, 2.6]),
+        yaxis=dict(visible=False, range=[-0.25, 1.25]),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=10, r=10, t=10, b=50),
+        height=320,
+        showlegend=False,
+    )
+    return fig
+
+
+def _strip_html(text: str) -> str:
+    text = _re.sub(r"<[^>]+>", "", text)
+    return html.unescape(text).strip()
+
+
+@st.cache_data(ttl=900)
+def fetch_f1_news(max_items: int = 8):
+    feed = feedparser.parse("https://www.autosport.com/rss/feed/f1")
+    articles = []
+    for entry in feed.entries[:max_items]:
+        articles.append({
+            "title": entry.get("title", ""),
+            "link": entry.get("link", ""),
+            "summary": _strip_html(entry.get("summary", "")),
+            "published": entry.get("published", ""),
+        })
+    return articles
+
+
+def _show_f1_news():
+    articles = fetch_f1_news()
+    if not articles:
+        st.warning("Could not load news feed.")
+        return
+    st.caption("News sourced from [Autosport](https://www.autosport.com/f1/) via RSS feed.")
+    for article in articles:
+        st.markdown(f"**[{article['title']}]({article['link']})**")
+        if article["published"]:
+            st.caption(article["published"])
+        if article["summary"]:
+            st.write(article["summary"])
+        st.divider()
+
+
+def _show_race_prediction():
+    """Render the Race Prediction expander contents."""
+    st.subheader("Next Race Podium Prediction")
+    st.caption(
+        "Trained on the last 3 seasons of race results. "
+        "Current season data is heavily weighted to account for regulation changes.\n"
+        "For fun only — not fantasy f1 advice!"
+    )
+
+    # ---- Sidebar controls for this section ----
+    col_cfg1, col_cfg2 = st.columns([2, 1])
+    with col_cfg1:
+        reg_boost = st.slider(
+            "Current season weight boost (regulation change factor)",
+            min_value=1.0, max_value=10.0, value=3.0, step=0.5,
+            help="Higher = trust this season's results more over prior seasons. "
+                 "Set higher if there was a big regulation change.",
+        )
+    with col_cfg2:
+        num_seasons = st.selectbox("Training seasons", [1, 2, 3], index=2)
+
+    # ---- Identify next race ----
+    current_year = predictor.CURRENT_YEAR
+    with st.spinner("Finding next race..."):
+        next_race = predictor.get_next_race_info(current_year)
+
+    if next_race is None:
+        st.info("No upcoming races found for this season.")
+        return
+
+    st.markdown(
+        f"**Next race:** {next_race['name']} — "
+        f"{next_race['location']}, {next_race['country']} "
+        f"({next_race['date']})"
+    )
+
+    # ---- Weather ----
+    days_away = (next_race['date'] - __import__('datetime').date.today()).days
+    weather = predictor.fetch_race_weather(
+        next_race.get('lat'), next_race.get('lon'), next_race['date']
+    )
+
+    if weather is not None:
+        wet_flag = weather['is_wet']
+        rain_icon = "🌧" if wet_flag else "☀️"
+        st.markdown(f"**Weather forecast:** {rain_icon} {weather['description']}")
+        wet_override = st.toggle(
+            "Override: treat as wet race",
+            value=wet_flag,
+            help="Toggle if you want to see how wet conditions change the prediction.",
+        )
+        wet_condition = wet_override
+    else:
+        if days_away > 16:
+            st.caption(f"Race is {days_away} days away — beyond reliable forecast window.")
+        wet_condition = st.toggle(
+            "Wet race conditions?",
+            value=False,
+            help="Enable to factor in wet-weather conditions for the prediction.",
+        )
+
+    # ---- Grid position input ----
+    st.markdown("**Expected grid positions** (edit if qualifying has happened):")
+
+    # Get current drivers from the results this season
+    with st.spinner("Training model..."):
+        podium_model, win_model, results_df, sw = predictor.run_prediction_pipeline(
+            current_year, num_seasons, reg_boost
+        )
+
+    if podium_model is None:
+        st.error("Not enough historical data to train the model.")
+        return
+
+    current_drivers = (
+        results_df[results_df['year'] == current_year]['driverCode']
+        .unique().tolist()
+    )
+    # Default: sort by championship points (best first = grid P1 proxy)
+    current_season = results_df[results_df['year'] == current_year]
+    driver_pts_total = (current_season.groupby('driverCode')['points']
+                                      .sum()
+                                      .sort_values(ascending=False))
+    ordered_drivers = driver_pts_total.index.tolist()
+    # Any driver not yet in results gets appended
+    for d in current_drivers:
+        if d not in ordered_drivers:
+            ordered_drivers.append(d)
+
+    # Show a compact grid input table
+    default_grid = {drv: i + 1 for i, drv in enumerate(ordered_drivers)}
+
+    with st.expander("Edit expected grid positions", expanded=False):
+        grid_cols = st.columns(4)
+        user_grid = {}
+        for i, drv in enumerate(ordered_drivers):
+            with grid_cols[i % 4]:
+                pos = st.number_input(
+                    drv, min_value=1, max_value=len(ordered_drivers),
+                    value=default_grid[drv], key=f"grid_{drv}",
+                )
+                user_grid[drv] = pos
+
+    driver_grid_map = user_grid if user_grid else default_grid
+
+    # ---- Run prediction ----
+    next_race_features = predictor.build_next_race_features(
+        results_df, next_race, current_year, driver_grid_map, wet_condition
+    )
+
+    predictions = predictor.predict_podium(podium_model, win_model, next_race_features)
+
+    # ---- Get team colours ----
+    # Build driver -> hex colour from FastF1 if possible
+    driver_colors = {}
+    try:
+        last_round = int(results_df[results_df['year'] == current_year]['round'].max())
+        sess = f1.get_session(current_year, last_round, 'R')
+        sess.load(laps=False, telemetry=False, weather=False, messages=False)
+        for drv in predictions['driverCode']:
+            try:
+                driver_colors[drv] = fpl.get_driver_color(drv, session=sess)
+            except Exception:
+                driver_colors[drv] = '#AAAAAA'
+    except Exception:
+        pass
+
+    # ---- Podium visual ----
+    st.markdown("### Predicted Podium")
+    podium_fig = _build_podium_figure(predictions.head(3), driver_colors)
+    st.plotly_chart(podium_fig, width='stretch')
+
+    # ---- Full probability bar chart ----
+    st.markdown("### Win Probability — All Drivers")
+    bar_df = predictions.copy()
+    bar_df['color'] = bar_df['driverCode'].map(
+        lambda d: driver_colors.get(d, '#AAAAAA')
+    )
+    fig_bar = go.Figure()
+    fig_bar.add_trace(go.Bar(
+        x=bar_df['driverCode'],
+        y=(bar_df['win_prob'] * 100).round(1),
+        marker_color=bar_df['color'].tolist(),
+        text=(bar_df['win_prob'] * 100).round(1).astype(str) + '%',
+        textposition='outside',
+        hovertemplate='%{x}<br>Win: %{y:.1f}%<extra></extra>',
+        name='Win probability',
+    ))
+    fig_bar.add_trace(go.Bar(
+        x=bar_df['driverCode'],
+        y=(bar_df['podium_prob'] * 100).round(1),
+        marker_color=bar_df['color'].tolist(),
+        opacity=0.35,
+        hovertemplate='%{x}<br>Podium: %{y:.1f}%<extra></extra>',
+        name='Podium probability',
+        showlegend=True,
+    ))
+    fig_bar.update_layout(
+        barmode='overlay',
+        xaxis_title='Driver',
+        yaxis_title='Probability (%)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+        margin=dict(l=0, r=0, t=30, b=0),
+        height=350,
+    )
+    st.plotly_chart(fig_bar, width='stretch')
+
+    # ---- Feature importances ----
+    with st.expander("Model feature importances (win model)", expanded=False):
+        imp_df = predictor.get_feature_importances(win_model)
+        fig_imp = go.Figure(go.Bar(
+            x=imp_df['importance'],
+            y=imp_df['feature'],
+            orientation='h',
+            marker_color='#4FC3F7',
+        ))
+        fig_imp.update_layout(
+            xaxis_title='Importance',
+            yaxis=dict(autorange='reversed'),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=280,
+        )
+        st.plotly_chart(fig_imp, width='stretch')
+
+        st.markdown("**Model**")
+        st.markdown(
+            "Gradient Boosting — an ensemble of 200 shallow decision trees built sequentially, "
+            "each one correcting the errors of the previous. Two separate classifiers are trained: "
+            "one for **win** (P1) and one for **podium** (top 3). Win probability is used to order "
+            "the podium steps; podium probability is shown as the wider bar in the chart above."
+        )
+
+        st.markdown("**Setup**")
+        st.code(
+            "n_estimators=200  # trees in the ensemble\n"
+            "learning_rate=0.05  # each tree contributes 5% of its correction\n"
+            "max_depth=3  # shallow trees — at most 8 leaves\n"
+            "subsample=0.8  # each tree sees 80% of rows (reduces overfitting)",
+            language="python",
+        )
+        st.markdown(
+            "Current season races are weighted up to **~15× more** than races from two seasons ago, "
+            "combining the regulation-change boost with a within-season recency factor."
+        )
+
+        st.markdown("**Limitations**")
+        st.markdown(
+            "- **Small dataset** — ~1,400 rows across 3 seasons. The model is directional, not precise.\n"
+            "- **Grid position** — before qualifying, grid is estimated from championship order, which blurs predictions significantly. After qualifying it becomes much more reliable.\n"
+            "- **No intra-race strategy** — safety cars, pit windows, and tyre deg aren't modelled.\n"
+            "- **Wet is binary** — a damp track and a monsoon are treated the same."
+        )
+
+
 st.set_page_config(layout="wide")
 st.title("F1 Dashboard - FastF1")
+
+_pic_cols = st.columns(4)
+for _col, _img in zip(_pic_cols, sorted(os.listdir("pics"))):
+    _col.image(f"pics/{_img}", width='stretch')
+
 st.sidebar.header("F1 Controls")
+
+if st.sidebar.button("Clear Cache", help="Free memory by clearing all cached session data"):
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.rerun()
 
 year = st.sidebar.slider("Select Year", min_value=2015, max_value=2026, value=2026)
 schedule = getschedule(year)
@@ -1158,6 +1503,20 @@ with st.expander("Driver Standings", expanded=False):
 with st.expander("Team Standings", expanded=False):
     fig = showteamstanding(year, round)
     st.plotly_chart(fig, width='stretch')
+
+with st.expander("Championship", expanded=False):
+    driver_standings = getdriverstandings(year, round)
+    if driver_standings.empty:
+        st.info("No standings data available yet for this race.")
+    else:
+        points = calculatemaxpointsforremainingseason(year, round)
+        calculatewhocanwin(driver_standings, points)
+
+with st.expander("F1 News (Autosport)", expanded=False):
+    _show_f1_news()
+
+with st.expander("Next Race Prediction", expanded=False):
+    _show_race_prediction()
 
 st.write(f"You selected: {year} - {selected_race}")
 st.subheader("Selection Details")
@@ -1236,9 +1595,6 @@ else:
     with st.expander("Driver Comparison"):
         driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2)
 
-    with st.expander("Championship"):
-        driver_standings = getdriverstandings(year, round)
-        points = calculatemaxpointsforremainingseason(year, round)
-        calculatewhocanwin(driver_standings, points)
-
-st.info("F1 Dashboard\nBuilt by Steve Johnstone 2026\nDashboard built using FastF1")
+st.info("F1 Dashboard\nBuilt by Steve Johnstone 2026\n")
+st.info("F1 is a registered trademark of Formula One Licensing B.V. All data sourced from Ergast API and FastF1.")
+st.info("This dashboard is for educational purposes only and does not represent the views of Formula One or any affiliated parties.")
