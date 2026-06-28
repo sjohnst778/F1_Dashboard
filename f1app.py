@@ -13,6 +13,7 @@ import fastf1 as f1
 import fastf1.plotting as fpl
 from fastf1.core import Laps
 from fastf1.ergast import Ergast
+from fastf1.req import RateLimitExceededError
 from timple.timedelta import strftimedelta
 from typing import List
 from plotly.io import show
@@ -68,6 +69,17 @@ def load_session_cached(year, event, session_name):
     session = f1.get_session(year, event, session_name)
     session.load()
     return session
+
+def safe_load_session(year, event, session_name):
+    try:
+        return load_session_cached(year, event, session_name)
+    except RateLimitExceededError:
+        st.error(
+            "FastF1 API rate limit reached (500 calls/hour). "
+            "This happens when the cache is empty after a fresh deployment. "
+            "Please wait a few minutes and try selecting the race again."
+        )
+        st.stop()
 
 def calendardetails(year, verbose=False):
     calendar = f1.get_event_schedule(year)
@@ -582,7 +594,7 @@ def marshal_sector_location(sector_num, circuit_info):
 
 
 def showracedetails(year, race_name, session_name):
-    session = load_session_cached(year, race_name, session_name)
+    session = safe_load_session(year, race_name, session_name)
 
     fig1 = showraceresults(session)
     st.pyplot(fig1); plt.close(fig1)
@@ -822,7 +834,7 @@ def getSpeedDifferenceChart(session, driver1, driver2):
 
 def driverComparison(year, selected_race, selected_session, selected_driver1, selected_driver2):
     fpl.setup_mpl(mpl_timedelta_support=False, color_scheme='fastf1')
-    session = load_session_cached(year, selected_race, selected_session)
+    session = safe_load_session(year, selected_race, selected_session)
     fig1 = getSpeedTraceFor(session, selected_driver1, selected_driver2)
     fig2 = showqualifyingdeltas(session, drv_list=[selected_driver1,selected_driver2])
     fig3 = getSpeedDifferenceChart(session, selected_driver1, selected_driver2)
@@ -1175,7 +1187,7 @@ if year < 2018:
     st.info("Detailed session data is not available for seasons prior to 2018. Only Driver and Team Standings are shown.")
 else:
     with st.expander("Track Map"):
-        session = load_session_cached(year, selected_race, "FP1")
+        session = safe_load_session(year, selected_race, "FP1")
         fig = drawtrackfor(session)
         if fig is not None:
             st.plotly_chart(fig, width='stretch')
@@ -1198,7 +1210,7 @@ else:
         showracedetails(year, selected_race, selected_session)
 
     with st.expander("Lap Comparison"):
-        session = load_session_cached(year, selected_race, selected_session)
+        session = safe_load_session(year, selected_race, selected_session)
         lap_df = get_driver_lap_times_df(session, selected_driver1)
         st.subheader(f"{selected_driver1} — Lap Times")
         st.dataframe(lap_df, hide_index=True, width='stretch')
