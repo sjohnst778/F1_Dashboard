@@ -25,6 +25,29 @@ import re as _re
 os.makedirs('f1cache', exist_ok=True)
 f1.Cache.enable_cache('f1cache')
 
+def _safe_driver_color(driver, session, fallback='#888888'):
+    try:
+        return fpl.get_driver_color(driver, session=session)
+    except Exception:
+        return fallback
+
+def _safe_team_color(team, session, fallback='#888888'):
+    try:
+        return fpl.get_team_color(team, session=session)
+    except Exception:
+        return fallback
+
+def _safe_driver_color_mapping(session):
+    try:
+        return fpl.get_driver_color_mapping(session=session)
+    except Exception:
+        colors = [f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+                  for r, g, b, *_ in plt.cm.tab20.colors]
+        drivers = []
+        if hasattr(session, 'results') and 'Abbreviation' in session.results.columns:
+            drivers = session.results['Abbreviation'].dropna().unique().tolist()
+        return {drv: colors[i % 20] for i, drv in enumerate(drivers)}
+
 def fastest_and_mins(drv: pd.DataFrame):
     """Return fastest lap row (Series) and min sector times as dict."""
     if drv.empty:
@@ -190,7 +213,7 @@ def plotdriverslaptimes(session, driver):
     fig, ax = plt.subplots(figsize=(8, 8))
 
     for drv in driver:
-        color = fpl.get_driver_color(drv, session=session)
+        color = _safe_driver_color(drv, session)
         print(drv, color)
         driver_laps = session.laps.pick_drivers(drv).pick_quicklaps().reset_index()
         sns.scatterplot(data=driver_laps,
@@ -324,7 +347,7 @@ def showqualifyingdeltas(session, drv_list=None):
     fastest_laps['LapTimeDelta'] = fastest_laps['LapTime'] - pole_lap['LapTime']
     team_colors = list()
     for index, lap in fastest_laps.iterlaps():
-        color = fpl.get_team_color(lap['Team'], session=session)
+        color = _safe_team_color(lap['Team'], session)
         team_colors.append(color)
     fig, ax = plt.subplots()
     ax.barh(fastest_laps.index, fastest_laps['LapTimeDelta'],
@@ -375,7 +398,7 @@ def driverlaptimes(session):
                    inner=None,
                    density_norm='area',
                    order=finishing_order,
-                   palette=fpl.get_driver_color_mapping(session=session)
+                   palette=_safe_driver_color_mapping(session)
     )
     
     compound_mapping = fpl.get_compound_mapping(session=session)
@@ -673,8 +696,8 @@ def getSpeedTraceFor(session, driver1, driver2):
             return 2
         return 3
 
-    d1_color = fpl.get_team_color(driver1_lap['Team'], session=session)
-    d2_color = fpl.get_team_color(driver2_lap['Team'], session=session)
+    d1_color = _safe_team_color(driver1_lap['Team'], session)
+    d2_color = _safe_team_color(driver2_lap['Team'], session)
     d2_linestyle = '--' if d1_color == d2_color else '-'
 
     fig, ax = plt.subplots()
@@ -752,8 +775,8 @@ def getSpeedDifferenceChart(session, driver1, driver2):
     d2_speed_interp = np.interp(dist, d2_tel['Distance'].to_numpy(), d2_tel['Speed'].to_numpy())
     diff = d1_speed - d2_speed_interp
 
-    d1_color = fpl.get_team_color(driver1_lap['Team'], session=session)
-    d2_color = fpl.get_team_color(driver2_lap['Team'], session=session)
+    d1_color = _safe_team_color(driver1_lap['Team'], session)
+    d2_color = _safe_team_color(driver2_lap['Team'], session)
 
     def hex_to_rgba(hex_color, alpha=0.33):
         hex_color = hex_color.lstrip('#')
