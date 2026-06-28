@@ -96,46 +96,15 @@ def fetch_historical_results(current_year: int, num_seasons: int = 3) -> pd.Data
     return pd.DataFrame(rows)
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def label_wet_race(year: int, round_num: int) -> bool:
-    """
-    Returns True if rain fell during the race session.
-    Uses FastF1 weather_data (lightweight — no telemetry loaded).
-    Falls back to False on any error.
-    """
-    try:
-        session = f1.get_session(year, round_num, 'R')
-        session.load(weather=True, laps=False, telemetry=False, messages=False)
-        wd = session.weather_data
-        if wd is not None and not wd.empty and 'Rainfall' in wd.columns:
-            return bool(wd['Rainfall'].any())
-    except Exception:
-        pass
-    return False
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
 def build_wet_labels(results_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Adds a 'wet' boolean column to results_df by querying FastF1 per race.
-    Only fetches for races with year >= 2018 (FastF1 data availability).
+    Adds a 'wet' column to results_df, defaulting to 0 (dry) for all historical
+    races. Loading FastF1 sessions for every historical race to detect rainfall
+    burns through the API rate limit on cold start. The wet signal for the
+    *next* race comes from the live weather forecast instead.
     """
-    if results_df.empty:
-        return results_df
-
-    race_keys = results_df[['year', 'round']].drop_duplicates()
-    wet_map = {}
-    for _, r in race_keys.iterrows():
-        y, rnd = int(r['year']), int(r['round'])
-        if y >= 2018:
-            wet_map[(y, rnd)] = label_wet_race(y, rnd)
-        else:
-            wet_map[(y, rnd)] = False
-
     results_df = results_df.copy()
-    results_df['wet'] = results_df.apply(
-        lambda r: wet_map.get((int(r['year']), int(r['round'])), False), axis=1
-    ).astype(int)
+    results_df['wet'] = 0
     return results_df
 
 
